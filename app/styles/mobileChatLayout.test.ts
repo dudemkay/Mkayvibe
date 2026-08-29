@@ -10,6 +10,10 @@ describe('native mobile chat layout', () => {
     expect(css).toContain('height: 100% !important');
   });
 
+  it('sizes the mobile app frame from dynamic viewport units rather than browser scroll events', () => {
+    expect(css).toContain('height: calc(100dvh - var(--header-height)) !important');
+  });
+
   it('keeps mobile conversation content from widening the viewport', () => {
     expect(css).toContain("[data-testid='native-mobile-chat-surface'] :where(pre, table)");
     expect(css).toContain('overflow-wrap: anywhere');
