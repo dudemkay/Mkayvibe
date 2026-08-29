@@ -12,7 +12,7 @@ const items = [
   { view: 'files', label: 'Files', icon: 'i-ph:folder-simple' },
   { view: 'code', label: 'Code', icon: 'i-ph:code' },
   { view: 'preview', label: 'Preview', icon: 'i-ph:monitor' },
-  { view: 'git', label: 'Git', icon: 'i-ph:git-branch' },
+  { view: 'git', label: 'Sync', icon: 'i-ph:arrows-clockwise' },
 ] satisfies Array<{ view: MobileWorkspaceView; label: string; icon: string }>;
 
 export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavProps) {
