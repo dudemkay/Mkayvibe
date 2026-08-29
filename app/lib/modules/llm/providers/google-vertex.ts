@@ -10,7 +10,7 @@ import { parseConfiguredModels } from './provider-models';
 export function buildGoogleVertexBaseUrl(
   configuredBaseUrl?: string,
   projectId?: string,
-  location = 'us-central1',
+  location = 'global',
 ): string | undefined {
   if (configuredBaseUrl?.trim()) {
     return configuredBaseUrl.trim().replace(/\/+$/, '');
@@ -20,8 +20,11 @@ export function buildGoogleVertexBaseUrl(
     return undefined;
   }
 
-  const normalizedLocation = location.trim() || 'us-central1';
-  return `https://${normalizedLocation}-aiplatform.googleapis.com/v1/projects/${projectId.trim()}/locations/${normalizedLocation}/endpoints/openapi`;
+  const normalizedLocation = location.trim() || 'global';
+
+  // Google's current OpenAI-compatible Vertex endpoint uses the shared aiplatform.googleapis.com host.
+  // A custom regional/v1beta1 endpoint can still be supplied through GOOGLE_VERTEX_BASE_URL.
+  return `https://aiplatform.googleapis.com/v1/projects/${projectId.trim()}/locations/${normalizedLocation}/endpoints/openapi`;
 }
 
 export default class GoogleVertexProvider extends BaseProvider {
@@ -36,6 +39,20 @@ export default class GoogleVertexProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
+    {
+      name: 'google/gemini-3.5-flash',
+      label: 'Gemini 3.5 Flash (Vertex)',
+      provider: this.name,
+      maxTokenAllowed: 1048576,
+      maxCompletionTokens: 65536,
+    },
+    {
+      name: 'google/gemini-3.6-flash',
+      label: 'Gemini 3.6 Flash (Vertex)',
+      provider: this.name,
+      maxTokenAllowed: 1048576,
+      maxCompletionTokens: 65536,
+    },
     {
       name: 'google/gemini-3.1-pro-preview',
       label: 'Gemini 3.1 Pro Preview (Vertex)',
@@ -76,7 +93,7 @@ export default class GoogleVertexProvider extends BaseProvider {
     });
 
     const projectId = getProviderEnvironmentValue('GOOGLE_VERTEX_PROJECT', envRecord);
-    const location = getProviderEnvironmentValue('GOOGLE_VERTEX_LOCATION', envRecord) || 'us-central1';
+    const location = getProviderEnvironmentValue('GOOGLE_VERTEX_LOCATION', envRecord) || 'global';
     const clientEmail = getProviderEnvironmentValue('GOOGLE_VERTEX_CLIENT_EMAIL', envRecord);
     const privateKey = getProviderEnvironmentValue('GOOGLE_VERTEX_PRIVATE_KEY', envRecord);
     const baseURL = buildGoogleVertexBaseUrl(configuredBaseUrl, projectId, location);
