@@ -360,7 +360,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full min-w-0',
               {
                 hidden: isSmallViewport && mobileView !== 'chat',
-                [styles.MobileChatInset]: isSmallViewport && chatStarted,
+                [styles.MobileChatInset]: isSmallViewport,
               },
             )}
           >
@@ -527,7 +527,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             )}
           </ClientOnly>
         </div>
-        {chatStarted && isSmallViewport && <MobileWorkspaceNav activeView={mobileView} onChange={setMobileView} />}
+        {isSmallViewport && (
+          <MobileWorkspaceNav activeView={mobileView} onChange={setMobileView} workspaceReady={chatStarted} />
+        )}
       </div>
     );
 
