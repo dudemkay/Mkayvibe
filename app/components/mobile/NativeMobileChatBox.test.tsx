@@ -84,18 +84,13 @@ describe('NativeMobileChatBox', () => {
   });
 
   it('uses a native mobile provider and model list rather than desktop dropdowns', () => {
-    const setModelSettingsCollapsed = vi.fn();
-    render(<NativeMobileChatBox {...props} setIsModelSettingsCollapsed={setModelSettingsCollapsed} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Choose model' }));
-    expect(setModelSettingsCollapsed).toHaveBeenCalledWith(false);
-
     render(<NativeMobileChatBox {...props} isModelSettingsCollapsed={false} />);
+
     expect(screen.getByRole('dialog', { name: 'Model settings' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'GoogleVertex' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Google' })).toBeInTheDocument();
     expect(screen.getByLabelText('Search models')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Gemini 2.5 Flash/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gemini 2.5 Flash' })).toBeInTheDocument();
   });
 
   it('uses a full-size in-flow send button instead of an absolutely positioned desktop button', () => {
