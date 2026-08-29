@@ -28,18 +28,148 @@
 }
 
 .MobileChatInset {
-  padding-bottom: calc(3.75rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
 @media (max-width: 1023px) {
   .BaseChat {
-    min-height: 100dvh;
-    overflow-x: hidden;
+    height: calc(100dvh - var(--header-height, 0px));
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+
+    > :global(div) {
+      min-height: 0;
+      overflow: hidden !important;
+    }
 
     &[data-chat-visible='false'] .Chat {
       transform: none;
       opacity: 1;
     }
+  }
+
+  .MobileChat {
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    background: var(--bolt-elements-background-depth-1);
+  }
+
+  /* The StickToBottom root is the primary mobile chat viewport. */
+  .MobileChat > :global(.relative.min-w-0) {
+    box-sizing: border-box;
+    display: flex !important;
+    min-height: 0;
+    width: 100%;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.75rem 0.75rem 0 !important;
+    scroll-padding-bottom: 9rem;
+  }
+
+  /* Remove desktop conversation width constraints on phones/tablets. */
+  .MobileChat :global(.max-w-chat) {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .MobileChat :global(pre),
+  .MobileChat :global(code),
+  .MobileChat :global(table) {
+    max-width: 100%;
+  }
+
+  .MobileChat :global(pre) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Composer behaves like a native mobile bottom composer above the tab bar. */
+  .MobileChat :global(.z-prompt) {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .MobileChat > :global(.relative.min-w-0) > :global(.z-prompt) {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 80;
+    margin: auto 0 0 !important;
+    padding: 0.5rem 0 0.65rem;
+    background: linear-gradient(
+      to top,
+      var(--bolt-elements-background-depth-1) 72%,
+      color-mix(in srgb, var(--bolt-elements-background-depth-1) 92%, transparent)
+    );
+  }
+
+  .MobileChat :global(textarea) {
+    min-height: 52px !important;
+    max-height: min(32dvh, 180px) !important;
+    padding: 0.85rem 3.75rem 0.75rem 0.9rem !important;
+    font-size: 16px !important;
+    line-height: 1.4;
+  }
+
+  .MobileChat :global(.justify-between) {
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .MobileChat :global(.z-prompt) :global(button) {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .MobileChat :global(.z-prompt) :global(.text-xs) {
+    overflow-wrap: anywhere;
+  }
+
+  #intro {
+    margin-top: clamp(2.5rem, 10dvh, 6rem) !important;
+    padding-inline: 1rem;
+  }
+
+  #intro h1 {
+    font-size: clamp(2rem, 9vw, 3.25rem);
+    line-height: 1.05;
+  }
+
+  /* Hide keyboard-shortcut helper copy on narrow mobile screens. */
+  .MobileChat :global(kbd) {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 639px) {
+  .MobileChat > :global(.relative.min-w-0) {
+    padding-inline: 0.5rem !important;
+  }
+
+  .MobileChat > :global(.relative.min-w-0) > :global(.z-prompt) {
+    padding-inline: 0;
+  }
+
+  .MobileChat :global(.z-prompt) > :global(.relative) {
+    border-radius: 1.25rem !important;
+  }
+
+  .MobileChat :global(.justify-between) > :global(.text-xs) {
+    display: none;
   }
 }
 
