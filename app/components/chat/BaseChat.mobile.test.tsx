@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,8 +16,12 @@ vi.mock('~/components/workbench/Workbench.client', () => ({
 vi.mock('~/lib/stores/qrCodeStore', () => ({ expoUrlAtom: { get: () => '', subscribe: () => () => undefined } }));
 vi.mock('~/lib/hooks', async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
-  const StickToBottom = ({ children }: { children: ReactNode }) => <div>{children}</div>;
-  StickToBottom.Content = ({ children }: { children: ReactNode }) => <div>{children}</div>;
+  const StickToBottom = Object.assign(
+    ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    {
+      Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    },
+  );
 
   return {
     ...original,
