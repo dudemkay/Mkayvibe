@@ -31,9 +31,17 @@
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
+.MobileChatScroll,
+.MobileChatContent,
+.MobileComposer,
+.MobileWelcome,
+.MobileStartActions {
+  min-width: 0;
+}
+
 @media (max-width: 1023px) {
   .BaseChat {
-    height: calc(100dvh - var(--header-height, 0px));
+    height: calc(var(--mk-mobile-viewport-height, 100dvh) - var(--header-height, 0px));
     min-height: 0;
     width: 100%;
     overflow: hidden;
@@ -56,13 +64,11 @@
     min-height: 0;
     width: 100%;
     flex: 1 1 auto;
-    overflow-x: hidden;
-    overflow-y: hidden;
+    overflow: hidden;
     background: var(--bolt-elements-background-depth-1);
   }
 
-  /* The StickToBottom root is the primary mobile chat viewport. */
-  .MobileChat > :global(.relative.min-w-0) {
+  .MobileChatScroll {
     box-sizing: border-box;
     display: flex !important;
     min-height: 0;
@@ -73,8 +79,58 @@
     overflow-x: hidden;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 0.75rem 0.75rem 0 !important;
+    padding: 0.5rem 0.75rem 0 !important;
     scroll-padding-bottom: 9rem;
+  }
+
+  .MobileChatContent {
+    box-sizing: border-box;
+    width: 100%;
+    flex: 1 0 auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .MobileWelcome {
+    display: flex;
+    width: 100%;
+    flex: 1 0 auto;
+    min-height: clamp(12rem, 36dvh, 24rem);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem 1rem;
+    text-align: center;
+  }
+
+  .MobileWelcomeMark {
+    display: flex;
+    height: 2.75rem;
+    width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bolt-elements-borderColor);
+    border-radius: 0.9rem;
+    background: var(--bolt-elements-background-depth-2);
+    color: var(--bolt-elements-textSecondary);
+    font-size: 1.35rem;
+  }
+
+  .MobileWelcome h1 {
+    margin: 0.85rem 0 0;
+    max-width: 20rem;
+    color: var(--bolt-elements-textPrimary);
+    font-size: clamp(1.6rem, 7vw, 2.4rem);
+    font-weight: 650;
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .MobileWelcome p {
+    margin: 0.7rem 0 0;
+    max-width: 24rem;
+    color: var(--bolt-elements-textSecondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
   }
 
   /* Remove desktop conversation width constraints on phones/tablets. */
@@ -95,58 +151,84 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Composer behaves like a native mobile bottom composer above the tab bar. */
-  .MobileChat :global(.z-prompt) {
+  .MobileComposer {
     box-sizing: border-box;
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0 !important;
-  }
-
-  .MobileChat > :global(.relative.min-w-0) > :global(.z-prompt) {
     position: sticky !important;
     bottom: 0 !important;
     z-index: 80;
+    width: 100% !important;
+    max-width: none !important;
     margin: auto 0 0 !important;
-    padding: 0.5rem 0 0.65rem;
+    padding: 0.4rem 0 0.65rem;
     background: linear-gradient(
       to top,
-      var(--bolt-elements-background-depth-1) 72%,
+      var(--bolt-elements-background-depth-1) 74%,
       color-mix(in srgb, var(--bolt-elements-background-depth-1) 92%, transparent)
     );
   }
 
-  .MobileChat :global(textarea) {
+  .MobileStartActions {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0 0.15rem 0.2rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .MobileStartActions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .MobileStartActions :global(button),
+  .MobileStartActions :global(a) {
+    min-height: 40px;
+    flex: 0 0 auto;
+    touch-action: manipulation;
+  }
+
+  .MobileComposer > :global(.z-prompt) {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    border-radius: 1.15rem !important;
+    padding: 0.55rem !important;
+    box-shadow: 0 8px 30px rgb(0 0 0 / 8%);
+  }
+
+  .MobileComposer :global(textarea) {
     min-height: 52px !important;
-    max-height: min(32dvh, 180px) !important;
-    padding: 0.85rem 3.75rem 0.75rem 0.9rem !important;
+    max-height: min(30dvh, 180px) !important;
+    padding: 0.8rem 3.6rem 0.7rem 0.85rem !important;
     font-size: 16px !important;
     line-height: 1.4;
   }
 
-  .MobileChat :global(.justify-between) {
+  .MobileComposer :global(.justify-between) {
     min-width: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
-  .MobileChat :global(.z-prompt) :global(button) {
+  .MobileComposer :global(.justify-between)::-webkit-scrollbar {
+    display: none;
+  }
+
+  .MobileComposer :global(button) {
     min-width: 40px;
     min-height: 40px;
+    touch-action: manipulation;
   }
 
-  .MobileChat :global(.z-prompt) :global(.text-xs) {
+  .MobileComposer :global(.text-xs) {
     overflow-wrap: anywhere;
-  }
-
-  #intro {
-    margin-top: clamp(2.5rem, 10dvh, 6rem) !important;
-    padding-inline: 1rem;
-  }
-
-  #intro h1 {
-    font-size: clamp(2rem, 9vw, 3.25rem);
-    line-height: 1.05;
   }
 
   .MobileChat :global(kbd) {
@@ -155,19 +237,24 @@
 }
 
 @media (max-width: 639px) {
-  .MobileChat > :global(.relative.min-w-0) {
+  .MobileChatScroll {
     padding-inline: 0.5rem !important;
   }
 
-  .MobileChat > :global(.relative.min-w-0) > :global(.z-prompt) {
+  .MobileWelcome {
+    min-height: clamp(10rem, 30dvh, 17rem);
+    padding-inline: 0.75rem;
+  }
+
+  .MobileWelcome p {
+    max-width: 19rem;
+  }
+
+  .MobileComposer {
     padding-inline: 0;
   }
 
-  .MobileChat :global(.z-prompt) > :global(.relative) {
-    border-radius: 1.25rem !important;
-  }
-
-  .MobileChat :global(.justify-between) > :global(.text-xs) {
+  .MobileComposer :global(.justify-between) > :global(.text-xs) {
     display: none;
   }
 }
