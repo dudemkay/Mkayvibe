@@ -6,16 +6,20 @@ import { Header } from '~/components/header/Header';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Bolt' }, { name: 'description', content: 'Talk with Bolt, an AI assistant from StackBlitz' }];
+  return [
+    { title: 'Mkayvibe' },
+    {
+      name: 'description',
+      content: 'Mkayvibe is a private AI coding workspace for building, editing, previewing, and syncing software projects.',
+    },
+  ];
 };
 
 export const loader = () => json({});
 
 /**
- * Landing page component for Bolt
- * Note: Settings functionality should ONLY be accessed through the sidebar menu.
- * Do not add settings button/panel to this landing page as it was intentionally removed
- * to keep the UI clean and consistent with the design system.
+ * Mkayvibe landing page.
+ * Settings remain available through the navigation menu to keep the workspace uncluttered.
  */
 export default function Index() {
   return (

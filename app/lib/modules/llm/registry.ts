@@ -20,14 +20,20 @@ import AmazonBedrockProvider from './providers/amazon-bedrock';
 import GithubProvider from './providers/github';
 import MoonshotProvider from './providers/moonshot';
 import ZaiProvider from './providers/z-ai';
+import AzureOpenAIProvider from './providers/azure-openai';
+import CloudflareWorkersAIProvider from './providers/cloudflare-workers-ai';
+import GoogleVertexProvider from './providers/google-vertex';
 
 export {
   AnthropicProvider,
+  AzureOpenAIProvider,
   CerebrasProvider,
+  CloudflareWorkersAIProvider,
   CohereProvider,
   DeepseekProvider,
   FireworksProvider,
   GoogleProvider,
+  GoogleVertexProvider,
   GroqProvider,
   HuggingFaceProvider,
   HyperbolicProvider,

@@ -35,4 +35,5 @@ export interface ProviderConfig {
   baseUrlKey?: string;
   baseUrl?: string;
   apiTokenKey?: string;
+  modelsKey?: string;
 }

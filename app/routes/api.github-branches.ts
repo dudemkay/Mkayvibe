@@ -1,5 +1,6 @@
 import { json } from '@remix-run/cloudflare';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { resolveGitHubToken } from '~/lib/git/githubAuth';
 import { withSecurity } from '~/lib/security';
 
 interface GitHubBranch {
@@ -22,52 +23,36 @@ async function githubBranchesLoader({ request, context }: { request: Request; co
   try {
     let owner: string;
     let repo: string;
-    let githubToken: string;
+    let bodyToken = '';
 
     if (request.method === 'POST') {
-      // Handle POST request with token in body (from BranchSelector)
       const body: any = await request.json();
       owner = body.owner;
       repo = body.repo;
-      githubToken = body.token;
-
-      if (!owner || !repo) {
-        return json({ error: 'Owner and repo parameters are required' }, { status: 400 });
-      }
-
-      if (!githubToken) {
-        return json({ error: 'GitHub token is required' }, { status: 400 });
-      }
+      bodyToken = body.token || '';
     } else {
-      // Handle GET request with params and cookie token (backwards compatibility)
       const url = new URL(request.url);
       owner = url.searchParams.get('owner') || '';
       repo = url.searchParams.get('repo') || '';
-
-      if (!owner || !repo) {
-        return json({ error: 'Owner and repo parameters are required' }, { status: 400 });
-      }
-
-      // Get API keys from cookies (server-side only)
-      const cookieHeader = request.headers.get('Cookie');
-      const apiKeys = getApiKeysFromCookie(cookieHeader);
-
-      // Try to get GitHub token from various sources
-      githubToken =
-        apiKeys.GITHUB_API_KEY ||
-        apiKeys.VITE_GITHUB_ACCESS_TOKEN ||
-        context?.cloudflare?.env?.GITHUB_TOKEN ||
-        context?.cloudflare?.env?.VITE_GITHUB_ACCESS_TOKEN ||
-        process.env.GITHUB_TOKEN ||
-        process.env.VITE_GITHUB_ACCESS_TOKEN ||
-        '';
     }
+
+    if (!owner || !repo) {
+      return json({ error: 'Owner and repo parameters are required' }, { status: 400 });
+    }
+
+    const cookieHeader = request.headers.get('Cookie');
+    const apiKeys = getApiKeysFromCookie(cookieHeader);
+    const githubToken = resolveGitHubToken({
+      bodyToken,
+      apiKeys,
+      cloudflareEnv: context?.cloudflare?.env || {},
+      processEnv: process.env,
+    });
 
     if (!githubToken) {
       return json({ error: 'GitHub token not found' }, { status: 401 });
     }
 
-    // First, get repository info to know the default branch
     const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
@@ -91,7 +76,6 @@ async function githubBranchesLoader({ request, context }: { request: Request; co
     const repoInfo: any = await repoResponse.json();
     const defaultBranch = repoInfo.default_branch;
 
-    // Fetch branches
     const branchesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
@@ -105,8 +89,6 @@ async function githubBranchesLoader({ request, context }: { request: Request; co
     }
 
     const branches: GitHubBranch[] = await branchesResponse.json();
-
-    // Transform to our format
     const transformedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
       sha: branch.commit.sha,
@@ -114,7 +96,6 @@ async function githubBranchesLoader({ request, context }: { request: Request; co
       isDefault: branch.name === defaultBranch,
     }));
 
-    // Sort branches with default branch first, then alphabetically
     transformedBranches.sort((a, b) => {
       if (a.isDefault) {
         return -1;

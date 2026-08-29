@@ -124,7 +124,9 @@ export abstract class BaseProvider implements ProviderInfo {
     serverEnv?: Record<string, string>;
   }) {
     // Only include provider-relevant env keys, not the entire server environment
-    const relevantEnvKeys = [this.config.baseUrlKey, this.config.apiTokenKey].filter(Boolean) as string[];
+    const relevantEnvKeys = [this.config.baseUrlKey, this.config.apiTokenKey, this.config.modelsKey].filter(
+      Boolean,
+    ) as string[];
     const relevantEnv: Record<string, string> = {};
 
     for (const key of relevantEnvKeys) {
