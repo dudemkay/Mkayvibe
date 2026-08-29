@@ -52,13 +52,11 @@ describe('BaseChat mobile workspace composition', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)));
   });
 
-  it('renders the chat composer and start actions immediately before a chat exists', () => {
+  it('renders the chat composer immediately before a chat exists', () => {
     render(<BaseChat chatStarted={false} messages={[]} />);
 
     expect(screen.getByTestId('chat-box')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-chat-start-actions')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import GitHub' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import chat' })).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-chat-scroll')).toBeInTheDocument();
   });
 
   it('starts with model settings collapsed on mobile', () => {
@@ -77,21 +75,25 @@ describe('BaseChat mobile workspace composition', () => {
     expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
   });
 
-  it('opens an empty mobile section before chat starts', async () => {
-    render(<BaseChat chatStarted={false} messages={[]} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(await screen.findByRole('heading', { name: 'Files' })).toBeInTheDocument();
-    expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
-  });
-
-  it('switches the workbench surface when a mobile tab is selected after chat starts', async () => {
+  it('marks chat hidden when another mobile workspace tab is selected', () => {
     render(<BaseChat chatStarted messages={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(await screen.findByTestId('workbench-files')).toBeInTheDocument();
+
+    const chatBox = screen.getByTestId('chat-box');
+    const hiddenChatSurface = chatBox.closest('.hidden');
+    expect(hiddenChatSurface).not.toBeNull();
+    expect(screen.getByTestId('workbench-files')).toBeInTheDocument();
+  });
+
+  it('switches between workbench surfaces without changing the mobile navigation shell', () => {
+    render(<BaseChat chatStarted messages={[]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
+    expect(screen.getByTestId('workbench-files')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-    expect(await screen.findByTestId('workbench-preview')).toBeInTheDocument();
+    expect(screen.getByTestId('workbench-preview')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-current', 'page');
   });
 });
