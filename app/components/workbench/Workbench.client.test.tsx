@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const testState = vi.hoisted(() => ({
@@ -12,7 +12,15 @@ vi.mock('~/lib/hooks', () => ({
 }));
 
 vi.mock('./EditorPanel', () => ({
-  EditorPanel: ({ mobileMode }: { mobileMode?: string }) => <div data-testid={`editor-${mobileMode || 'desktop'}`} />,
+  EditorPanel: ({ mobileMode, onMobileFileOpened }: { mobileMode?: string; onMobileFileOpened?: () => void }) => (
+    <div data-testid={`editor-${mobileMode || 'desktop'}`}>
+      {mobileMode === 'files' && (
+        <button type="button" onClick={() => onMobileFileOpened?.()}>
+          Open file
+        </button>
+      )}
+    </div>
+  ),
 }));
 vi.mock('./DiffView', () => ({ DiffView: () => <div data-testid="diff-view" /> }));
 vi.mock('./Preview', () => ({ Preview: () => <div data-testid="preview-view" /> }));
@@ -77,6 +85,14 @@ describe('Workbench mobile surfaces', () => {
 
     rerender(<Workbench chatStarted mobileView="git" />);
     expect(screen.getByTestId('git-view')).toBeInTheDocument();
+  });
+
+  it('requests the code tab when a file is opened from mobile files', () => {
+    const onMobileViewChange = vi.fn();
+    render(<Workbench chatStarted mobileView="files" onMobileViewChange={onMobileViewChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open file' }));
+    expect(onMobileViewChange).toHaveBeenCalledWith('code');
   });
 
   it('keeps the desktop editor composition when not on a small viewport', () => {
