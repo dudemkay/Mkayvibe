@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from '@remix-run/react';
 import { toast } from 'react-toastify';
 import { Button } from '~/components/ui/Button';
+import { GitHubRepositorySelector } from '~/components/@settings/tabs/github/components/GitHubRepositorySelector';
 import { useGitHubConnection } from '~/lib/hooks/useGitHubConnection';
 import { useGitWorkspace, type GitWorkspaceStatus } from '~/lib/hooks/useGitWorkspace';
+import { buildGitImportUrl } from '~/lib/git/gitImport';
 import type { GitFileStatus } from '~/lib/git/gitStatus';
 
 const STATUS_LABELS: Record<GitFileStatus, string> = {
@@ -22,8 +25,9 @@ function getRepositoryName(remoteUrl: string | null) {
 }
 
 export function MobileGitView() {
+  const navigate = useNavigate();
   const { ready, getStatus, fetchRemote, pull, commitAll, push } = useGitWorkspace();
-  const { connection } = useGitHubConnection();
+  const { connection, isConnected } = useGitHubConnection();
   const [status, setStatus] = useState<GitWorkspaceStatus | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [activeAction, setActiveAction] = useState<'refresh' | 'fetch' | 'pull' | 'commit' | 'push' | null>(null);
@@ -96,17 +100,40 @@ export function MobileGitView() {
   }
 
   if (!status.isRepository) {
+    if (!isConnected || !connection) {
+      return (
+        <section className="flex h-full w-full items-center justify-center p-6 text-center" data-testid="mobile-git-view">
+          <div className="max-w-sm rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 shadow-sm">
+            <div className="i-ph:github-logo mx-auto mb-3 text-4xl text-bolt-elements-textSecondary" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Connect GitHub first</h2>
+            <p className="mt-2 text-sm leading-6 text-bolt-elements-textSecondary">
+              Open Settings → GitHub and connect your account. Then return here to choose a repository and branch.
+            </p>
+          </div>
+        </section>
+      );
+    }
+
     return (
-      <section className="flex h-full w-full items-center justify-center p-6 text-center" data-testid="mobile-git-view">
-        <div className="max-w-sm rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 shadow-sm">
-          <div className="i-ph:git-branch mx-auto mb-3 text-4xl text-bolt-elements-textSecondary" aria-hidden="true" />
-          <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">No Git repository loaded</h2>
-          <p className="mt-2 text-sm leading-6 text-bolt-elements-textSecondary">
-            Import or clone a GitHub repository first. Its Git controls will then appear here automatically.
-          </p>
-          <Button className="mt-4" variant="outline" onClick={() => void refresh()} disabled={activeAction !== null}>
-            Refresh
-          </Button>
+      <section
+        className="h-full w-full overflow-y-auto px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4"
+        data-testid="mobile-git-view"
+      >
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-4 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="i-ph:github-logo text-xl text-bolt-elements-textPrimary" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Choose a GitHub repository</h2>
+            </div>
+            <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+              Select a repository, choose its branch, and Mkayvibe will import it into this workspace.
+            </p>
+          </div>
+
+          <GitHubRepositorySelector
+            onClone={(repoUrl, branch) => navigate(buildGitImportUrl(repoUrl, branch))}
+            className="pb-4"
+          />
         </div>
       </section>
     );
