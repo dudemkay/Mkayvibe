@@ -1,3 +1,7 @@
+/*
+ * Mobile-first workspace additions live here only when they need CSS-module
+ * scoping. Layout state continues to live in BaseChat/Workbench.
+ */
 .BaseChat {
   &[data-chat-visible='false'] {
     --workbench-inner-width: 100%;
@@ -16,6 +20,27 @@
 
 .Chat {
   opacity: 1;
+}
+
+.MobileChat {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.MobileChatInset {
+  padding-bottom: calc(3.75rem + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 1023px) {
+  .BaseChat {
+    min-height: 100dvh;
+    overflow-x: hidden;
+
+    &[data-chat-visible='false'] .Chat {
+      transform: none;
+      opacity: 1;
+    }
+  }
 }
 
 .PromptEffectContainer {
