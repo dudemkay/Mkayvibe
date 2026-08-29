@@ -122,7 +122,7 @@ export function useGitWorkspace() {
   useEffect(() => {
     webcontainerPromise.then((container) => {
       setWebcontainer(container);
-      setFs(getFs(container, fileData));
+      setFs(createGitWorkspaceFs(container, fileData));
       setReady(true);
     });
   }, []);
@@ -382,7 +382,7 @@ export function useGitWorkspace() {
   );
 }
 
-const getFs = (
+export const createGitWorkspaceFs = (
   webcontainer: WebContainer,
   record: MutableRefObject<Record<string, { data: any; encoding?: string }>>,
 ): PromiseFsClient => ({
@@ -419,6 +419,11 @@ const getFs = (
     },
     stat: async (path: string) => {
       const relativePath = pathUtils.relative(webcontainer.workdir, path);
+
+      if (relativePath === '.' || relativePath === '') {
+        return statShape(false, true, 4096);
+      }
+
       const dirPath = pathUtils.dirname(relativePath);
       const fileName = pathUtils.basename(relativePath);
 
@@ -440,7 +445,7 @@ const getFs = (
 
       return statShape(fileInfo.isFile(), fileInfo.isDirectory(), fileInfo.isDirectory() ? 4096 : 1);
     },
-    lstat: async (path: string) => getFs(webcontainer, record).promises.stat(path),
+    lstat: async (path: string) => createGitWorkspaceFs(webcontainer, record).promises.stat(path),
     readlink: async (path: string) => {
       throw new Error(`EINVAL: invalid argument, readlink '${path}'`);
     },

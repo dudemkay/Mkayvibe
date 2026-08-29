@@ -5,20 +5,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { MobileWorkspaceNav } from './MobileWorkspaceNav';
 
 describe('MobileWorkspaceNav', () => {
-  it('renders all five mobile workspace destinations', () => {
+  it('renders all five mobile workspace destinations with Sync as the Git action', () => {
     render(<MobileWorkspaceNav activeView="chat" onChange={() => undefined} />);
 
     expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Code' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Git' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Git' })).not.toBeInTheDocument();
   });
 
   it('keeps every destination enabled before a workspace starts', () => {
     render(<MobileWorkspaceNav activeView="chat" onChange={() => undefined} workspaceReady={false} />);
 
-    for (const label of ['Chat', 'Files', 'Code', 'Preview', 'Git']) {
+    for (const label of ['Chat', 'Files', 'Code', 'Preview', 'Sync']) {
       expect(screen.getByRole('button', { name: label })).toBeEnabled();
     }
   });
@@ -32,6 +33,14 @@ describe('MobileWorkspaceNav', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect(onChange).toHaveBeenCalledWith('preview');
+  });
+
+  it('keeps the Sync label mapped to the existing git workspace view', () => {
+    const onChange = vi.fn();
+    render(<MobileWorkspaceNav activeView="chat" onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync' }));
+    expect(onChange).toHaveBeenCalledWith('git');
   });
 
   it('is navigation only and never renders a full-screen content overlay', () => {
