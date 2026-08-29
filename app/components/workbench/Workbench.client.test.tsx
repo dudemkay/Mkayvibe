@@ -69,8 +69,8 @@ describe('Workbench mobile surfaces', () => {
     testState.smallViewport = true;
   });
 
-  it('renders the files surface on mobile', () => {
-    render(<Workbench chatStarted mobileView="files" />);
+  it('renders the files surface on mobile before chat starts', () => {
+    render(<Workbench chatStarted={false} mobileView="files" />);
     expect(screen.getByTestId('editor-files')).toBeInTheDocument();
   });
 
@@ -95,7 +95,13 @@ describe('Workbench mobile surfaces', () => {
     expect(onMobileViewChange).toHaveBeenCalledWith('code');
   });
 
-  it('keeps the desktop editor composition when not on a small viewport', () => {
+  it('still stays hidden on desktop before chat starts', () => {
+    testState.smallViewport = false;
+    render(<Workbench chatStarted={false} mobileView="files" />);
+    expect(screen.queryByTestId('editor-desktop')).not.toBeInTheDocument();
+  });
+
+  it('keeps the desktop editor composition after chat starts', () => {
     testState.smallViewport = false;
     render(<Workbench chatStarted mobileView="files" />);
     expect(screen.getByTestId('editor-desktop')).toBeInTheDocument();
