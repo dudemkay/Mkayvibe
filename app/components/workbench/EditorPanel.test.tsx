@@ -25,6 +25,7 @@ vi.mock('~/lib/stores/theme', () => ({ themeStore: { get: () => 'light', subscri
 vi.mock('~/lib/stores/workbench', () => ({
   workbenchStore: {
     showTerminal: { get: () => false, subscribe: () => () => undefined },
+    currentView: { set: vi.fn() },
   },
 }));
 
