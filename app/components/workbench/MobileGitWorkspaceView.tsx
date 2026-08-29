@@ -155,13 +155,13 @@ export function MobileGitWorkspaceView() {
             : 'Ready to check';
   const primaryLabel =
     status.syncState === 'synced' && changeCount === 0
-      ? 'Up to date'
+      ? 'Check GitHub'
       : status.syncState === 'behind' && changeCount === 0
         ? 'Pull latest'
         : status.syncState === 'diverged'
           ? 'Review in Advanced Git'
           : 'Sync to GitHub';
-  const primaryDisabled = busy || status.syncState === 'diverged' || (status.syncState === 'synced' && changeCount === 0);
+  const primaryDisabled = busy || status.syncState === 'diverged';
 
   return (
     <section className="h-full w-full overflow-y-auto px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4">
