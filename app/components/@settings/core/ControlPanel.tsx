@@ -14,7 +14,6 @@ import { DialogTitle } from '~/components/ui/Dialog';
 import { AvatarDropdown } from './AvatarDropdown';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 
-// Import all tab components
 import ProfileTab from '~/components/@settings/tabs/profile/ProfileTab';
 import SettingsTab from '~/components/@settings/tabs/settings/SettingsTab';
 import NotificationsTab from '~/components/@settings/tabs/notifications/NotificationsTab';
@@ -35,47 +34,37 @@ interface ControlPanelProps {
   onClose: () => void;
 }
 
-// Beta status for experimental features
 const BETA_TABS = new Set<TabType>(['local-providers', 'mcp']);
 
 const BetaLabel = () => (
-  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-purple-500/10 dark:bg-purple-500/20">
+  <div className="absolute right-2 top-2 rounded-full bg-purple-500/10 px-1.5 py-0.5 dark:bg-purple-500/20">
     <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400">BETA</span>
   </div>
 );
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
-  // State
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
   const [loadingTab, setLoadingTab] = useState<TabType | null>(null);
   const [showTabManagement, setShowTabManagement] = useState(false);
 
-  // Store values
   const tabConfiguration = useStore(tabConfigurationStore);
   const profile = useStore(profileStore) as Profile;
 
-  // Status hooks
   const { hasNewFeatures, unviewedFeatures, acknowledgeAllFeatures } = useFeatures();
   const { hasUnreadNotifications, unreadNotifications, markAllAsRead } = useNotifications();
   const { hasConnectionIssues, currentIssue, acknowledgeIssue } = useConnectionStatus();
 
-  // Memoize the base tab configurations to avoid recalculation
-  const baseTabConfig = useMemo(() => {
-    return new Map(DEFAULT_TAB_CONFIG.map((tab) => [tab.id, tab]));
-  }, []);
+  const baseTabConfig = useMemo(() => new Map(DEFAULT_TAB_CONFIG.map((tab) => [tab.id, tab])), []);
 
-  // Add visibleTabs logic using useMemo with optimized calculations
   const visibleTabs = useMemo(() => {
     if (!tabConfiguration?.userTabs || !Array.isArray(tabConfiguration.userTabs)) {
       console.warn('Invalid tab configuration, resetting to defaults');
       resetTabConfiguration();
-
       return [];
     }
 
     const notificationsDisabled = profile?.preferences?.notifications === false;
 
-    // Optimize user mode tab filtering
     return tabConfiguration.userTabs
       .filter((tab) => {
         if (!tab?.id) {
@@ -91,20 +80,16 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
       .sort((a, b) => a.order - b.order);
   }, [tabConfiguration, profile?.preferences?.notifications, baseTabConfig]);
 
-  // Reset to default view when modal opens/closes
   useEffect(() => {
     if (!open) {
-      // Reset when closing
       setActiveTab(null);
       setLoadingTab(null);
       setShowTabManagement(false);
     } else {
-      // When opening, set to null to show the main view
       setActiveTab(null);
     }
   }, [open]);
 
-  // Handle closing
   const handleClose = () => {
     setActiveTab(null);
     setLoadingTab(null);
@@ -112,7 +97,6 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
     onClose();
   };
 
-  // Handlers
   const handleBack = () => {
     if (showTabManagement) {
       setShowTabManagement(false);
@@ -151,7 +135,6 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         return <EventLogsTab />;
       case 'mcp':
         return <McpTab />;
-
       default:
         return null;
     }
@@ -200,7 +183,6 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
     setActiveTab(tabId);
     setShowTabManagement(false);
 
-    // Acknowledge notifications based on tab
     switch (tabId) {
       case 'features':
         acknowledgeAllFeatures();
@@ -217,101 +199,74 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         break;
     }
 
-    // Clear loading state after a delay
     setTimeout(() => setLoadingTab(null), 500);
   };
 
   return (
     <RadixDialog.Root open={open}>
       <RadixDialog.Portal>
-        <div className="fixed inset-0 flex items-center justify-center z-[100] modern-scrollbar">
-          <RadixDialog.Overlay className="absolute inset-0 bg-black/70 dark:bg-black/80 backdrop-blur-sm transition-opacity duration-200" />
+        <div className="fixed inset-0 z-[100] flex items-stretch justify-center overflow-hidden sm:items-center sm:p-4">
+          <RadixDialog.Overlay className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-200 dark:bg-black/80" />
 
           <RadixDialog.Content
             aria-describedby={undefined}
             onEscapeKeyDown={handleClose}
             onPointerDownOutside={handleClose}
-            className="relative z-[101]"
+            className="relative z-[101] h-full w-full min-w-0 outline-none sm:h-auto sm:max-h-[90dvh] sm:max-w-[1200px]"
           >
             <div
               className={classNames(
-                'w-[1200px] h-[90vh]',
-                'bg-bolt-elements-background-depth-1',
-                'rounded-2xl shadow-2xl',
-                'border border-bolt-elements-borderColor',
-                'flex flex-col overflow-hidden',
-                'relative',
+                'relative flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 shadow-2xl',
+                'border-0 rounded-none sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-2xl sm:border',
                 'transform transition-all duration-200 ease-out',
                 open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4',
               )}
             >
-              <div className="absolute inset-0 overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 overflow-hidden sm:rounded-2xl">
                 <BackgroundRays />
               </div>
-              <div className="relative z-10 flex flex-col h-full">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center space-x-4">
+
+              <div className="relative z-10 flex h-full min-h-0 min-w-0 flex-col">
+                <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-gray-700 sm:min-h-0 sm:px-6 sm:py-4">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-4">
                     {(activeTab || showTabManagement) && (
                       <button
                         onClick={handleBack}
-                        className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-purple-500/10 dark:hover:bg-purple-500/20 group transition-colors duration-150"
+                        aria-label="Back"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-transparent transition-colors duration-150 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 sm:h-8 sm:w-8"
                       >
-                        <div className="i-ph:arrow-left w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
+                        <div className="i-ph:arrow-left h-5 w-5 text-gray-500 dark:text-gray-400 sm:h-4 sm:w-4" />
                       </button>
                     )}
-                    <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
+                    <DialogTitle className="min-w-0 truncate text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
                       {showTabManagement ? 'Tab Management' : activeTab ? TAB_LABELS[activeTab] : 'Control Panel'}
                     </DialogTitle>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    {/* Avatar and Dropdown */}
-                    <div className="pl-6">
+                  <div className="flex shrink-0 items-center gap-1 sm:gap-4">
+                    <div className="hidden pl-2 sm:block sm:pl-6">
                       <AvatarDropdown onSelectTab={handleTabClick} />
                     </div>
-
-                    {/* Close Button */}
                     <button
                       onClick={handleClose}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-purple-500/10 dark:hover:bg-purple-500/20 group transition-all duration-200"
+                      aria-label="Close settings"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-transparent transition-all duration-200 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 sm:h-8 sm:w-8"
                     >
-                      <div className="i-ph:x w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
+                      <div className="i-ph:x h-5 w-5 text-gray-500 dark:text-gray-400 sm:h-4 sm:w-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Content */}
-                <div
-                  className={classNames(
-                    'flex-1',
-                    'overflow-y-auto',
-                    'hover:overflow-y-auto',
-                    'scrollbar scrollbar-w-2',
-                    'scrollbar-track-transparent',
-                    'scrollbar-thumb-[#E5E5E5] hover:scrollbar-thumb-[#CCCCCC]',
-                    'dark:scrollbar-thumb-[#333333] dark:hover:scrollbar-thumb-[#444444]',
-                    'will-change-scroll',
-                    'touch-auto',
-                  )}
-                >
-                  <div
-                    className={classNames(
-                      'p-6 transition-opacity duration-150',
-                      activeTab || showTabManagement ? 'opacity-100' : 'opacity-100',
-                    )}
-                  >
+                <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)] touch-pan-y">
+                  <div className="min-w-0 p-3 transition-opacity duration-150 sm:p-6">
                     {activeTab ? (
-                      getTabComponent(activeTab)
+                      <div className="min-w-0 max-w-full overflow-x-hidden">{getTabComponent(activeTab)}</div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative">
+                      <div className="relative grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                         {visibleTabs.map((tab, index) => (
                           <div
                             key={tab.id}
-                            className={classNames(
-                              'aspect-[1.5/1] transition-transform duration-100 ease-out',
-                              'hover:scale-[1.01]',
-                            )}
+                            className="min-h-28 min-w-0 transition-transform duration-100 ease-out hover:scale-[1.01] sm:aspect-[1.5/1]"
                             style={{
                               animationDelay: `${index * 30}ms`,
                               animation: open ? 'fadeInUp 200ms ease-out forwards' : 'none',
@@ -325,7 +280,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                               statusMessage={getStatusMessage(tab.id)}
                               description={TAB_DESCRIPTIONS[tab.id]}
                               isLoading={loadingTab === tab.id}
-                              className="h-full relative"
+                              className="relative h-full min-w-0"
                             >
                               {BETA_TABS.has(tab.id) && <BetaLabel />}
                             </TabTile>
