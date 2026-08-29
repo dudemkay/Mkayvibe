@@ -36,11 +36,17 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('emits non-chat destinations before a workspace exists', () => {
+  it('shows an empty section when a non-chat destination opens before a workspace exists', () => {
     const onChange = vi.fn();
-    render(<MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />);
+    const { rerender } = render(
+      <MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
     expect(onChange).toHaveBeenCalledWith('files');
+
+    rerender(<MobileWorkspaceNav activeView="files" onChange={onChange} workspaceReady={false} />);
+    expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
+    expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
   });
 });
