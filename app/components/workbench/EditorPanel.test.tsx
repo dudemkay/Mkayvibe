@@ -21,13 +21,19 @@ vi.mock('./terminal/TerminalTabs', () => ({
   DEFAULT_TERMINAL_SIZE: 30,
   TerminalTabs: () => <div data-testid="terminal">Terminal</div>,
 }));
-vi.mock('~/lib/stores/theme', () => ({ themeStore: { get: () => 'light', subscribe: () => () => undefined } }));
-vi.mock('~/lib/stores/workbench', () => ({
-  workbenchStore: {
-    showTerminal: { get: () => false, subscribe: () => () => undefined },
-    currentView: { set: vi.fn() },
-  },
-}));
+vi.mock('~/lib/stores/theme', async () => {
+  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
+  return { themeStore: atom('light') };
+});
+vi.mock('~/lib/stores/workbench', async () => {
+  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
+  return {
+    workbenchStore: {
+      showTerminal: atom(false),
+      currentView: atom<'code' | 'diff' | 'preview'>('code'),
+    },
+  };
+});
 
 import { EditorPanel } from './EditorPanel';
 
