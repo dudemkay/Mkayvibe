@@ -36,17 +36,21 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('shows an empty section when a non-chat destination opens before a workspace exists', () => {
+  it('shows an empty section for files before a workspace exists and offers Git import', () => {
     const onChange = vi.fn();
-    const { rerender } = render(
-      <MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />,
-    );
+    render(<MobileWorkspaceNav activeView="files" onChange={onChange} workspaceReady={false} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(onChange).toHaveBeenCalledWith('files');
-
-    rerender(<MobileWorkspaceNav activeView="files" onChange={onChange} workspaceReady={false} />);
     expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
     expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import from GitHub' }));
+    expect(onChange).toHaveBeenCalledWith('git');
+  });
+
+  it('does not cover the Git surface with an empty-state overlay before a workspace exists', () => {
+    render(<MobileWorkspaceNav activeView="git" onChange={() => undefined} workspaceReady={false} />);
+
+    expect(screen.queryByRole('heading', { name: 'Git' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Git' })).toHaveAttribute('aria-current', 'page');
   });
 });
