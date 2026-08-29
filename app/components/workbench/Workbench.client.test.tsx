@@ -87,6 +87,16 @@ describe('Workbench mobile surfaces', () => {
     expect(screen.getByTestId('git-view')).toBeInTheDocument();
   });
 
+  it('renders Git before a chat or project has started so repositories can be imported', () => {
+    render(<Workbench chatStarted={false} mobileView="git" />);
+    expect(screen.getByTestId('git-view')).toBeInTheDocument();
+  });
+
+  it('does not expose files before a chat or project has started', () => {
+    render(<Workbench chatStarted={false} mobileView="files" />);
+    expect(screen.queryByTestId('editor-files')).not.toBeInTheDocument();
+  });
+
   it('requests the code tab when a file is opened from mobile files', () => {
     const onMobileViewChange = vi.fn();
     render(<Workbench chatStarted mobileView="files" onMobileViewChange={onMobileViewChange} />);
