@@ -13,8 +13,8 @@ export interface UseGitHubStatsState {
 
 export interface UseGitHubStatsOptions {
   autoFetch?: boolean;
-  refreshInterval?: number; // in milliseconds
-  cacheTimeout?: number; // in milliseconds
+  refreshInterval?: number;
+  cacheTimeout?: number;
 }
 
 export interface UseGitHubStatsReturn extends UseGitHubStatsState {
@@ -25,15 +25,15 @@ export interface UseGitHubStatsReturn extends UseGitHubStatsState {
 }
 
 const STATS_CACHE_KEY = 'github_stats_cache';
-const DEFAULT_CACHE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const DEFAULT_CACHE_TIMEOUT = 30 * 60 * 1000;
 
 export function useGitHubStats(
   connection: GitHubConnection | null,
   options: UseGitHubStatsOptions = {},
-  isServerSide: boolean = false,
+  isServerSide: boolean = Boolean(connection && !connection.token),
 ): UseGitHubStatsReturn {
   const { autoFetch = false, refreshInterval, cacheTimeout = DEFAULT_CACHE_TIMEOUT } = options;
-
+  const serverManaged = isServerSide || Boolean(connection && !connection.token);
   const [state, setState] = useState<UseGitHubStatsState>({
     stats: null,
     isLoading: false,
@@ -42,22 +42,15 @@ export function useGitHubStats(
     lastUpdated: null,
   });
 
-  // Configure API service when connection is available
   const apiService = useMemo(() => {
     if (!connection?.token) {
       return null;
     }
 
-    // Configure the singleton instance with the current connection
-    gitHubApiService.configure({
-      token: connection.token,
-      tokenType: connection.tokenType,
-    });
-
+    gitHubApiService.configure({ token: connection.token, tokenType: connection.tokenType });
     return gitHubApiService;
   }, [connection?.token, connection?.tokenType]);
 
-  // Check if stats are stale
   const isStale = useMemo(() => {
     if (!state.lastUpdated || !state.stats) {
       return true;
@@ -66,124 +59,69 @@ export function useGitHubStats(
     return Date.now() - state.lastUpdated.getTime() > cacheTimeout;
   }, [state.lastUpdated, state.stats, cacheTimeout]);
 
-  // Load cached stats on mount
-  useEffect(() => {
-    loadCachedStats();
+  const saveCachedStats = useCallback((stats: GitHubStats, userLogin: string) => {
+    try {
+      localStorage.setItem(
+        STATS_CACHE_KEY,
+        JSON.stringify({ stats, timestamp: Date.now(), userLogin }),
+      );
+    } catch (error) {
+      console.warn('Could not cache GitHub stats:', error);
+    }
   }, []);
 
-  // Auto-fetch stats when connection changes - with better handling
   useEffect(() => {
-    if (autoFetch && connection && (!state.stats || isStale)) {
-      /*
-       * For server-side connections, always try to fetch
-       * For client-side connections, only fetch if we have an API service
-       */
-      if (isServerSide || apiService) {
-        // Use a timeout to prevent immediate fetching on mount
-        const timeoutId = setTimeout(() => {
-          fetchStats().catch((error) => {
-            console.warn('Failed to auto-fetch stats:', error);
-
-            // Don't throw error on auto-fetch to prevent crashes
-          });
-        }, 100);
-
-        return () => clearTimeout(timeoutId);
-      }
+    if (!connection?.user?.login) {
+      return;
     }
 
-    return undefined;
-  }, [autoFetch, connection, apiService, state.stats, isStale, isServerSide]);
-
-  // Set up refresh interval if provided
-  useEffect(() => {
-    if (!refreshInterval || !connection) {
-      return undefined;
-    }
-
-    const interval = setInterval(() => {
-      if (isStale) {
-        refreshStats();
-      }
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [refreshInterval, connection, isStale]);
-
-  const loadCachedStats = useCallback(() => {
     try {
       const cached = localStorage.getItem(STATS_CACHE_KEY);
 
-      if (cached) {
-        const { stats, timestamp, userLogin } = JSON.parse(cached);
-
-        // Only use cached data if it's for the current user
-        if (userLogin === connection?.user?.login) {
-          setState((prev) => ({
-            ...prev,
-            stats,
-            lastUpdated: new Date(timestamp),
-          }));
-        }
+      if (!cached) {
+        return;
       }
-    } catch (error) {
-      console.error('Error loading cached stats:', error);
 
-      // Clear corrupted cache
+      const parsed = JSON.parse(cached);
+
+      if (parsed.userLogin === connection.user.login && parsed.stats) {
+        setState((previous) => ({
+          ...previous,
+          stats: parsed.stats,
+          lastUpdated: new Date(parsed.timestamp),
+        }));
+      }
+    } catch {
       localStorage.removeItem(STATS_CACHE_KEY);
     }
   }, [connection?.user?.login]);
 
-  const saveCachedStats = useCallback((stats: GitHubStats, userLogin: string) => {
-    try {
-      const cacheData = {
-        stats,
-        timestamp: Date.now(),
-        userLogin,
-      };
-      localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(cacheData));
-    } catch (error) {
-      console.error('Error saving stats to cache:', error);
-    }
-  }, []);
-
   const fetchStats = useCallback(async () => {
     if (!connection?.user) {
-      setState((prev) => ({
-        ...prev,
-        error: 'GitHub connection not available',
-        isLoading: false,
-        isRefreshing: false,
-      }));
+      setState((previous) => ({ ...previous, error: 'GitHub connection not available' }));
       return;
     }
 
-    setState((prev) => ({
-      ...prev,
-      isLoading: !prev.stats, // Show loading only if no stats yet
-      isRefreshing: !!prev.stats, // Show refreshing if stats exist
+    setState((previous) => ({
+      ...previous,
+      isLoading: !previous.stats,
+      isRefreshing: Boolean(previous.stats),
       error: null,
     }));
 
     try {
       let stats: GitHubStats;
 
-      if (isServerSide || !connection.token) {
-        // Use server-side API for stats
+      if (serverManaged) {
         const response = await fetch('/api/github-stats');
+        const data = (await response.json().catch(() => ({}))) as GitHubStats & { error?: string };
 
         if (!response.ok) {
-          if (response.status === 401) {
-            throw new Error('GitHub authentication required');
-          }
-
-          const errorData: any = await response.json();
-          throw new Error(errorData.error || 'Failed to fetch stats from server');
+          throw new Error(data.error || `Failed to fetch GitHub repositories (${response.status})`);
         }
 
-        stats = await response.json();
+        stats = data;
       } else {
-        // Use client-side API service for stats
         if (!apiService) {
           throw new Error('GitHub API service not available');
         }
@@ -191,106 +129,77 @@ export function useGitHubStats(
         stats = await apiService.generateComprehensiveStats(connection.user);
       }
 
-      const now = new Date();
-
-      setState((prev) => ({
-        ...prev,
-        stats,
-        isLoading: false,
-        isRefreshing: false,
-        lastUpdated: now,
-        error: null,
-      }));
-
-      // Cache the stats
+      const lastUpdated = new Date();
+      setState({ stats, isLoading: false, isRefreshing: false, error: null, lastUpdated });
       saveCachedStats(stats, connection.user.login);
-
-      // Update the connection object with stats if needed
-      if (connection.stats?.lastUpdated !== stats.lastUpdated) {
-        const updatedConnection = {
-          ...connection,
-          stats,
-        };
-        localStorage.setItem('github_connection', JSON.stringify(updatedConnection));
-      }
-
-      // Only show success toast for manual refreshes, not auto-fetches
-      if (state.isRefreshing) {
-        toast.success('GitHub stats updated successfully');
-      }
     } catch (error) {
-      console.error('Error fetching GitHub stats:', error);
-
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch GitHub stats';
-
-      setState((prev) => ({
-        ...prev,
+      const message = error instanceof Error ? error.message : 'Failed to fetch GitHub stats';
+      setState((previous) => ({
+        ...previous,
         isLoading: false,
         isRefreshing: false,
-        error: errorMessage,
+        error: message,
       }));
-
-      // Only show error toast for manual actions, not auto-fetches
-      if (state.isRefreshing) {
-        toast.error(`Failed to update GitHub stats: ${errorMessage}`);
-      }
-
       throw error;
     }
-  }, [apiService, connection, saveCachedStats, isServerSide]);
+  }, [apiService, connection, saveCachedStats, serverManaged]);
 
   const refreshStats = useCallback(async () => {
-    if (state.isRefreshing || state.isLoading) {
-      return; // Prevent multiple simultaneous requests
+    if (state.isLoading || state.isRefreshing) {
+      return;
     }
 
-    await fetchStats();
-  }, [fetchStats, state.isRefreshing, state.isLoading]);
+    try {
+      await fetchStats();
+      toast.success('GitHub repositories updated');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update GitHub repositories';
+      toast.error(message);
+      throw error;
+    }
+  }, [fetchStats, state.isLoading, state.isRefreshing]);
+
+  useEffect(() => {
+    if (!autoFetch || !connection?.user || (!isStale && state.stats)) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      void fetchStats().catch((error) => console.warn('GitHub auto-fetch failed:', error));
+    }, 100);
+
+    return () => clearTimeout(timeout);
+  }, [autoFetch, connection?.user, fetchStats, isStale, state.stats]);
+
+  useEffect(() => {
+    if (!refreshInterval || !connection?.user) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (isStale) {
+        void fetchStats().catch(() => undefined);
+      }
+    }, refreshInterval);
+
+    return () => clearInterval(interval);
+  }, [connection?.user, fetchStats, isStale, refreshInterval]);
 
   const clearStats = useCallback(() => {
-    setState({
-      stats: null,
-      isLoading: false,
-      isRefreshing: false,
-      error: null,
-      lastUpdated: null,
-    });
-
-    // Clear cache
+    setState({ stats: null, isLoading: false, isRefreshing: false, error: null, lastUpdated: null });
     localStorage.removeItem(STATS_CACHE_KEY);
   }, []);
 
-  return {
-    ...state,
-    fetchStats,
-    refreshStats,
-    clearStats,
-    isStale,
-  };
+  return { ...state, fetchStats, refreshStats, clearStats, isStale };
 }
 
-// Helper hook for lightweight stats fetching (just repositories)
 export function useGitHubRepositories(connection: GitHubConnection | null) {
   const [repositories, setRepositories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiService = useMemo(() => {
-    if (!connection?.token) {
-      return null;
-    }
-
-    // Configure the singleton instance with the current connection
-    gitHubApiService.configure({
-      token: connection.token,
-      tokenType: connection.tokenType,
-    });
-
-    return gitHubApiService;
-  }, [connection?.token, connection?.tokenType]);
-
   const fetchRepositories = useCallback(async () => {
-    if (!apiService) {
+    if (!connection?.user) {
       setError('GitHub connection not available');
       return;
     }
@@ -299,23 +208,28 @@ export function useGitHubRepositories(connection: GitHubConnection | null) {
     setError(null);
 
     try {
-      const repos = await apiService.getAllUserRepositories();
-      setRepositories(repos);
-    } catch (error) {
-      console.error('Error fetching repositories:', error);
+      if (!connection.token) {
+        const response = await fetch('/api/github-stats');
+        const data = (await response.json().catch(() => ({}))) as { repos?: any[]; error?: string };
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch repositories';
-      setError(errorMessage);
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch repositories');
+        }
+
+        setRepositories(data.repos || []);
+        return;
+      }
+
+      gitHubApiService.configure({ token: connection.token, tokenType: connection.tokenType });
+      setRepositories(await gitHubApiService.getAllUserRepositories());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch repositories';
+      setError(message);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [apiService]);
+  }, [connection]);
 
-  return {
-    repositories,
-    isLoading,
-    error,
-    fetchRepositories,
-  };
+  return { repositories, isLoading, error, fetchRepositories };
 }
