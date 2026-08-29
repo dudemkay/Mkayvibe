@@ -26,3 +26,31 @@ export function createGitWorkspaceImportMessage(gitUrl: string, gitBranch?: stri
     content: `GitHub workspace connected: ${repositoryName}${branchText}. The repository is loaded as a real Git working tree so Chat, Files, Code, Preview and Sync all work on the same project.`,
   };
 }
+
+export function sanitizeLegacyGitImportMessages(messages: Message[], gitUrl: string, gitBranch?: string): Message[] {
+  let legacyImportReplaced = false;
+
+  return messages.map((message) => {
+    if (legacyImportReplaced || message.role !== 'assistant' || typeof message.content !== 'string') {
+      return message;
+    }
+
+    const isLegacyGitFileImport =
+      message.content.includes('<boltArtifact id="imported-files"') ||
+      message.content.includes("<boltArtifact id='imported-files'") ||
+      message.content.includes('title="Git Cloned Files"') ||
+      message.content.includes("title='Git Cloned Files'");
+
+    if (!isLegacyGitFileImport) {
+      return message;
+    }
+
+    legacyImportReplaced = true;
+    const replacement = createGitWorkspaceImportMessage(gitUrl, gitBranch);
+
+    return {
+      ...message,
+      content: replacement.content,
+    };
+  });
+}
