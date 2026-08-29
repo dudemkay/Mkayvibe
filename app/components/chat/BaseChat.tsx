@@ -152,6 +152,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [mobileView, setMobileView] = useState<MobileWorkspaceView>('chat');
 
     useEffect(() => {
+      if (isSmallViewport) {
+        setIsModelSettingsCollapsed(true);
+      }
+    }, [isSmallViewport]);
+
+    useEffect(() => {
+      if (!isSmallViewport || typeof window === 'undefined') {
+        return;
+      }
+
+      const viewport = window.visualViewport;
+      const target = document.documentElement;
+
+      const syncViewportHeight = () => {
+        const height = viewport?.height ?? window.innerHeight;
+        target.style.setProperty('--mk-mobile-viewport-height', `${Math.round(height)}px`);
+      };
+
+      syncViewportHeight();
+      viewport?.addEventListener('resize', syncViewportHeight);
+      viewport?.addEventListener('scroll', syncViewportHeight);
+      window.addEventListener('orientationchange', syncViewportHeight);
+
+      return () => {
+        viewport?.removeEventListener('resize', syncViewportHeight);
+        viewport?.removeEventListener('scroll', syncViewportHeight);
+        window.removeEventListener('orientationchange', syncViewportHeight);
+        target.style.removeProperty('--mk-mobile-viewport-height');
+      };
+    }, [isSmallViewport]);
+
+    useEffect(() => {
       if (expoUrl) {
         setQrModalOpen(true);
       }
@@ -165,9 +197,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setProgressAnnotations(progressList);
       }
     }, [data]);
-    useEffect(() => {
-      console.log(transcript);
-    }, [transcript]);
 
     useEffect(() => {
       onStreamingChange?.(isStreaming);
@@ -352,7 +381,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto overflow-x-hidden w-full h-full min-w-0">
+        <div
+          className={classNames('flex flex-col lg:flex-row w-full h-full min-w-0 overflow-x-hidden', {
+            'overflow-y-hidden': isSmallViewport,
+            'overflow-y-auto': !isSmallViewport,
+          })}
+        >
           <div
             className={classNames(
               styles.Chat,
@@ -364,7 +398,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               },
             )}
           >
-            {!chatStarted && (
+            {!chatStarted && !isSmallViewport && (
               <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
                   Where ideas begin
@@ -376,12 +410,26 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             )}
             <StickToBottom
               className={classNames('pt-6 px-2 sm:px-6 relative min-w-0', {
-                'h-full flex flex-col modern-scrollbar': chatStarted,
+                'h-full flex flex-col modern-scrollbar': chatStarted && !isSmallViewport,
+                [styles.MobileChatScroll]: isSmallViewport,
               })}
               resize="smooth"
               initial="smooth"
             >
-              <StickToBottom.Content className="flex flex-col gap-4 relative min-w-0">
+              <StickToBottom.Content
+                className={classNames('flex flex-col gap-4 relative min-w-0', {
+                  [styles.MobileChatContent]: isSmallViewport,
+                })}
+              >
+                {!chatStarted && isSmallViewport && (
+                  <div className={styles.MobileWelcome}>
+                    <div className={styles.MobileWelcomeMark} aria-hidden="true">
+                      <span className="i-ph:sparkle-fill" />
+                    </div>
+                    <h1>What do you want to build?</h1>
+                    <p>Describe an idea, ask about code, or import a GitHub project to continue working on it.</p>
+                  </div>
+                )}
                 <ClientOnly>
                   {() => {
                     return chatStarted ? (
@@ -403,17 +451,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </StickToBottom.Content>
               <div
                 className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6 min-w-0', {
-                  sticky: chatStarted,
+                  sticky: chatStarted && !isSmallViewport,
+                  [styles.MobileComposer]: isSmallViewport,
                 })}
-                style={
-                  chatStarted
-                    ? {
-                        bottom: isSmallViewport
-                          ? 'calc(3.75rem + env(safe-area-inset-bottom) + 0.5rem)'
-                          : '0.5rem',
-                      }
-                    : undefined
-                }
+                style={chatStarted && !isSmallViewport ? { bottom: '0.5rem' } : undefined}
               >
                 <div className="flex flex-col gap-2">
                   {deployAlert && (
@@ -449,6 +490,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
                 </div>
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
+                {!chatStarted && isSmallViewport && (
+                  <div className={styles.MobileStartActions} data-testid="mobile-chat-start-actions">
+                    {ImportButtons(importChat)}
+                    <GitCloneButton importChat={importChat} />
+                  </div>
+                )}
                 <ChatBox
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
                   setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
@@ -494,7 +541,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 />
               </div>
             </StickToBottom>
-            <div className="flex flex-col justify-center">
+            <div className={classNames('flex flex-col justify-center', { hidden: isSmallViewport })}>
               {!chatStarted && (
                 <div className="flex justify-center gap-2">
                   {ImportButtons(importChat)}
