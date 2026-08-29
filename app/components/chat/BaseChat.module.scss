@@ -1,6 +1,7 @@
 /*
- * Mobile-first workspace additions live here only when they need CSS-module
- * scoping. Layout state continues to live in BaseChat/Workbench.
+ * Mkayvibe chat layout. Desktop keeps the upstream split-workspace behaviour;
+ * mobile is constrained to one visible surface with a dedicated conversation
+ * viewport and composer dock.
  */
 .BaseChat {
   &[data-chat-visible='false'] {
@@ -22,15 +23,7 @@
   opacity: 1;
 }
 
-.MobileChat {
-  min-width: 0;
-  overflow-x: hidden;
-}
-
-.MobileChatInset {
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
-}
-
+.MobileChat,
 .MobileChatScroll,
 .MobileChatContent,
 .MobileComposer,
@@ -39,73 +32,97 @@
   min-width: 0;
 }
 
+.MobileChat {
+  overflow-x: hidden;
+}
+
+.MobileChatInset {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+
 @media (max-width: 1023px) {
   .BaseChat {
     height: calc(var(--mk-mobile-viewport-height, 100dvh) - var(--header-height, 0px));
     min-height: 0;
     width: 100%;
+    max-width: 100vw;
     overflow: hidden;
     overscroll-behavior: none;
+  }
 
-    > div {
-      min-height: 0;
-      overflow: hidden !important;
-    }
+  .BaseChat > div {
+    min-height: 0;
+    overflow: hidden !important;
+  }
 
-    &[data-chat-visible='false'] .Chat {
-      transform: none;
-      opacity: 1;
-    }
+  .BaseChat[data-chat-visible='false'] .Chat {
+    transform: none;
+    opacity: 1;
+  }
+
+  /* React adds `hidden` whenever another mobile workspace tab is selected.
+   * Enforce that state even if utility-class generation order prefers `flex`.
+   */
+  .MobileChat:global(.hidden) {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .MobileChat {
     box-sizing: border-box;
+    display: flex;
     height: 100%;
     min-height: 0;
     width: 100%;
-    flex: 1 1 auto;
-    overflow: hidden;
-    background: var(--bolt-elements-background-depth-1);
-  }
-
-  /* Never allow the legacy desktop start screen into the mobile visual tree. */
-  .MobileChat > :global(.flex.flex-col.justify-center) {
-    display: none !important;
-  }
-
-  .MobileChatScroll {
-    box-sizing: border-box;
-    display: flex !important;
-    height: 100%;
-    min-height: 0;
-    width: 100%;
+    max-width: 100vw;
     flex: 1 1 auto;
     flex-direction: column;
     overflow: hidden;
-    padding: 0.5rem 0.75rem 0 !important;
+    background: var(--bolt-elements-background-depth-1);
+    isolation: isolate;
+  }
+
+  /* Never show the legacy desktop prompt/template block on a mobile device. */
+  .MobileChat > :last-child:not(.MobileChatScroll) {
+    display: none !important;
+  }
+
+  /* StickToBottom becomes a two-row mobile app surface:
+   * scrollable conversation + non-scrolling composer.
+   */
+  .MobileChatScroll {
+    box-sizing: border-box;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+    flex: 1 1 auto;
+    overflow: hidden !important;
+    padding: 0 !important;
   }
 
   .MobileChatContent {
     box-sizing: border-box;
-    width: 100%;
     min-height: 0;
-    flex: 1 1 auto;
-    overflow-y: auto;
+    width: 100%;
     overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.75rem;
+    padding: 0.75rem 0.75rem 1rem;
     scroll-padding-bottom: 1rem;
   }
 
   .MobileWelcome {
     display: flex;
-    width: 100%;
     min-height: 100%;
+    width: 100%;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 1.5rem 1rem;
+    padding: 2rem 1rem 1.5rem;
     text-align: center;
   }
 
@@ -126,7 +143,7 @@
     margin: 0.85rem 0 0;
     max-width: 20rem;
     color: var(--bolt-elements-textPrimary);
-    font-size: clamp(1.6rem, 7vw, 2.4rem);
+    font-size: clamp(1.65rem, 7vw, 2.4rem);
     font-weight: 650;
     line-height: 1.08;
     letter-spacing: -0.035em;
@@ -134,18 +151,12 @@
 
   .MobileWelcome p {
     margin: 0.7rem 0 0;
-    max-width: 24rem;
+    max-width: 22rem;
     color: var(--bolt-elements-textSecondary);
     font-size: 0.9rem;
     line-height: 1.5;
   }
 
-  /* Mobile Chat is intentionally minimal. Repo import lives in the Git tab. */
-  .MobileStartActions {
-    display: none !important;
-  }
-
-  /* Remove desktop conversation width constraints on phones/tablets. */
   .MobileChat :global(.max-w-chat) {
     width: 100% !important;
     max-width: none !important;
@@ -163,19 +174,26 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* A real app-style footer composer: content scrolls, composer does not. */
+  /* The old Import Chat / Import Folder / Clone controls must not appear in
+   * mobile Chat. GitHub import is handled by the dedicated Git tab.
+   */
+  .MobileStartActions {
+    display: none !important;
+  }
+
   .MobileComposer {
     box-sizing: border-box;
     position: relative !important;
-    bottom: auto !important;
+    inset: auto !important;
     z-index: 80;
     width: 100% !important;
     max-width: none !important;
-    min-height: 0;
-    flex: 0 0 auto;
     margin: 0 !important;
-    padding: 0.4rem 0 0.65rem;
-    background: var(--bolt-elements-background-depth-1);
+    padding: 0.5rem 0.55rem 0.65rem;
+    flex: 0 0 auto;
+    border-top: 1px solid var(--bolt-elements-borderColor);
+    background: color-mix(in srgb, var(--bolt-elements-background-depth-1) 96%, transparent);
+    backdrop-filter: blur(16px);
   }
 
   .MobileComposer > :global(.z-prompt) {
@@ -184,15 +202,15 @@
     max-width: none !important;
     min-width: 0 !important;
     margin: 0 !important;
-    border-radius: 1.15rem !important;
-    padding: 0.55rem !important;
-    box-shadow: 0 8px 30px rgb(0 0 0 / 8%);
+    border-radius: 1.25rem !important;
+    padding: 0.45rem !important;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 8%);
   }
 
   .MobileComposer :global(textarea) {
-    min-height: 52px !important;
-    max-height: min(30dvh, 180px) !important;
-    padding: 0.8rem 3.6rem 0.7rem 0.85rem !important;
+    min-height: 50px !important;
+    max-height: min(28dvh, 160px) !important;
+    padding: 0.8rem 3.5rem 0.7rem 0.85rem !important;
     font-size: 16px !important;
     line-height: 1.4;
   }
@@ -200,8 +218,9 @@
   .MobileComposer :global(.justify-between) {
     min-width: 0;
     flex-wrap: nowrap;
-    gap: 0.35rem;
+    gap: 0.25rem;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
   }
 
@@ -209,7 +228,8 @@
     display: none;
   }
 
-  .MobileComposer :global(button) {
+  .MobileComposer :global(button),
+  .MobileComposer :global([role='button']) {
     min-width: 40px;
     min-height: 40px;
     touch-action: manipulation;
@@ -219,14 +239,45 @@
     overflow-wrap: anywhere;
   }
 
-  .MobileChat :global(kbd) {
+  .MobileComposer :global(kbd) {
+    white-space: nowrap;
+  }
+
+  /* Opening Model Settings on mobile becomes a bottom sheet rather than
+   * expanding inside the composer and rebuilding the page layout.
+   */
+  .MobileComposer :global(.z-prompt > div:first-of-type > div:not(.hidden)) {
+    position: fixed !important;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: calc(4rem + env(safe-area-inset-bottom) + 6.75rem);
+    z-index: 490 !important;
+    max-height: min(68dvh, 620px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.75rem;
+    border: 1px solid var(--bolt-elements-borderColor);
+    border-radius: 1rem;
+    background: var(--bolt-elements-background-depth-1);
+    box-shadow: 0 18px 50px rgb(0 0 0 / 22%);
+  }
+
+  .MobileComposer :global([title='Model Settings']) {
+    max-width: min(44vw, 180px);
+  }
+
+  .MobileComposer :global([title='Model Settings'] .text-xs) {
+    max-width: min(32vw, 130px);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 }
 
 @media (max-width: 639px) {
-  .MobileChatScroll {
-    padding-inline: 0.5rem !important;
+  .MobileChatContent {
+    padding-inline: 0.55rem;
   }
 
   .MobileWelcome {
@@ -235,10 +286,6 @@
 
   .MobileWelcome p {
     max-width: 19rem;
-  }
-
-  .MobileComposer {
-    padding-inline: 0;
   }
 
   .MobileComposer :global(.justify-between) > :global(.text-xs) {
