@@ -14,6 +14,12 @@ describe('GoogleVertexProvider', () => {
     );
   });
 
+  it('ships a current Vertex OpenAI-compatible Gemini default', () => {
+    const provider = new GoogleVertexProvider();
+
+    expect(provider.staticModels.map((model) => model.name)).toContain('google/gemini-3.1-pro-preview');
+  });
+
   it('uses configured Vertex model ids', async () => {
     const provider = new GoogleVertexProvider();
     const models = await provider.getDynamicModels(undefined, { models: 'google/model-a; google/model-b' }, {});
