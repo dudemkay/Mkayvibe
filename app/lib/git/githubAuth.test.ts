@@ -1,24 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { resolveGitHubToken } from './githubAuth';
+import { buildGitHubProxyAuthorization, resolveGitHubToken, resolveServerGitHubToken } from './githubAuth';
 
-describe('resolveGitHubToken', () => {
-  it('prefers an explicit browser token', () => {
+describe('GitHub auth resolution', () => {
+  it('prefers the Cloudflare server token over browser or cookie tokens', () => {
     expect(
       resolveGitHubToken({
         bodyToken: 'browser-token',
         apiKeys: { GITHUB_API_KEY: 'cookie-token' },
         cloudflareEnv: { GITHUB_TOKEN: 'server-token' },
       }),
+    ).toBe('server-token');
+  });
+
+  it('falls back to a browser token when no server token exists', () => {
+    expect(
+      resolveGitHubToken({
+        bodyToken: 'browser-token',
+        apiKeys: { GITHUB_API_KEY: 'cookie-token' },
+      }),
     ).toBe('browser-token');
   });
 
-  it('falls back to a server-side token when the browser token is absent', () => {
+  it('resolves only server-side GitHub credentials for proxy use', () => {
     expect(
-      resolveGitHubToken({
-        bodyToken: '',
-        apiKeys: {},
-        cloudflareEnv: { VITE_GITHUB_ACCESS_TOKEN: 'server-token' },
+      resolveServerGitHubToken({
+        bodyToken: 'browser-token',
+        apiKeys: { GITHUB_API_KEY: 'cookie-token' },
+        cloudflareEnv: { GITHUB_TOKEN: 'server-token' },
       }),
     ).toBe('server-token');
+  });
+
+  it('injects a server credential only for github.com', () => {
+    const authorization = buildGitHubProxyAuthorization('github.com', {
+      cloudflareEnv: { GITHUB_TOKEN: 'server-token' },
+    });
+
+    expect(authorization).toBe(`Basic ${btoa('x-access-token:server-token')}`);
+    expect(buildGitHubProxyAuthorization('gitlab.com', { cloudflareEnv: { GITHUB_TOKEN: 'server-token' } })).toBe('');
   });
 });
