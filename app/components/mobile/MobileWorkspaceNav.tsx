@@ -4,6 +4,7 @@ import type { MobileWorkspaceView } from './types';
 interface MobileWorkspaceNavProps {
   activeView: MobileWorkspaceView;
   onChange: (view: MobileWorkspaceView) => void;
+  workspaceReady?: boolean;
 }
 
 const items = [
@@ -14,7 +15,7 @@ const items = [
   { view: 'git', label: 'Git', icon: 'i-ph:git-branch' },
 ] satisfies Array<{ view: MobileWorkspaceView; label: string; icon: string }>;
 
-export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavProps) {
+export function MobileWorkspaceNav({ activeView, onChange, workspaceReady = true }: MobileWorkspaceNavProps) {
   return (
     <nav
       aria-label="Mobile workspace"
@@ -24,6 +25,7 @@ export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavP
       <div className="grid grid-cols-5 gap-1">
         {items.map((item) => {
           const isActive = item.view === activeView;
+          const isDisabled = !workspaceReady && item.view !== 'chat';
 
           return (
             <button
@@ -31,6 +33,7 @@ export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavP
               type="button"
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
+              disabled={isDisabled}
               onClick={() => onChange(item.view)}
               className={classNames(
                 'min-h-11 min-w-0 rounded-lg bg-transparent px-1 py-1.5 text-[11px] font-medium transition-colors',
@@ -38,6 +41,7 @@ export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavP
                 isActive
                   ? 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentAccent'
                   : 'text-bolt-elements-textTertiary hover:bg-bolt-elements-background-depth-2 hover:text-bolt-elements-textPrimary',
+                isDisabled && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-bolt-elements-textTertiary',
               )}
             >
               <span aria-hidden="true" className={classNames(item.icon, 'text-xl')} />
