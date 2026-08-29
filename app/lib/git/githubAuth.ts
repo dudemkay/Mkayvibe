@@ -5,15 +5,33 @@ export interface GitHubTokenSources {
   processEnv?: Record<string, string | undefined>;
 }
 
-export function resolveGitHubToken({ bodyToken, apiKeys = {}, cloudflareEnv = {}, processEnv = {} }: GitHubTokenSources) {
+export function resolveServerGitHubToken({ cloudflareEnv = {}, processEnv = {} }: GitHubTokenSources): string {
   return (
-    bodyToken ||
-    apiKeys.GITHUB_API_KEY ||
-    apiKeys.VITE_GITHUB_ACCESS_TOKEN ||
     cloudflareEnv.GITHUB_TOKEN ||
-    cloudflareEnv.VITE_GITHUB_ACCESS_TOKEN ||
     processEnv.GITHUB_TOKEN ||
+    cloudflareEnv.VITE_GITHUB_ACCESS_TOKEN ||
     processEnv.VITE_GITHUB_ACCESS_TOKEN ||
     ''
   );
+}
+
+export function resolveGitHubToken(sources: GitHubTokenSources): string {
+  const { bodyToken, apiKeys = {} } = sources;
+  const serverToken = resolveServerGitHubToken(sources);
+
+  return serverToken || bodyToken || apiKeys.GITHUB_API_KEY || apiKeys.VITE_GITHUB_ACCESS_TOKEN || '';
+}
+
+export function buildGitHubProxyAuthorization(domain: string, sources: GitHubTokenSources): string {
+  if (domain.toLowerCase() !== 'github.com') {
+    return '';
+  }
+
+  const token = resolveServerGitHubToken(sources);
+
+  if (!token) {
+    return '';
+  }
+
+  return `Basic ${btoa(`x-access-token:${token}`)}`;
 }
