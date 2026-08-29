@@ -36,12 +36,20 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('never renders a second full-screen empty-state layer', () => {
+  it('shows a passive empty surface without buttons that can redirect the user', () => {
     render(<MobileWorkspaceNav activeView="files" onChange={() => undefined} workspaceReady={false} />);
 
-    expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
+    expect(screen.getByText(/files will appear here/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Go to Chat' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Import from GitHub' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('does not cover the Git surface before a workspace exists', () => {
+    render(<MobileWorkspaceNav activeView="git" onChange={() => undefined} workspaceReady={false} />);
+
+    expect(screen.queryByRole('heading', { name: 'Git' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Git' })).toHaveAttribute('aria-current', 'page');
   });
 });
