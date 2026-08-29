@@ -56,7 +56,7 @@ export function MobileGitView() {
 
     return {
       name: user?.name || login,
-      email: user?.email || `${login}@users.noreply.github.com`,
+      email: `${login}@users.noreply.github.com`,
     };
   }, [connection]);
 
