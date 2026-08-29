@@ -68,37 +68,44 @@
     background: var(--bolt-elements-background-depth-1);
   }
 
+  /* Never allow the legacy desktop start screen into the mobile visual tree. */
+  .MobileChat > :global(.flex.flex-col.justify-center) {
+    display: none !important;
+  }
+
   .MobileChatScroll {
     box-sizing: border-box;
     display: flex !important;
+    height: 100%;
     min-height: 0;
     width: 100%;
     flex: 1 1 auto;
     flex-direction: column;
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     padding: 0.5rem 0.75rem 0 !important;
-    scroll-padding-bottom: 9rem;
   }
 
   .MobileChatContent {
     box-sizing: border-box;
     width: 100%;
-    flex: 1 0 auto;
-    padding-bottom: 0.5rem;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.75rem;
+    scroll-padding-bottom: 1rem;
   }
 
   .MobileWelcome {
     display: flex;
     width: 100%;
-    flex: 1 0 auto;
-    min-height: clamp(12rem, 36dvh, 24rem);
+    min-height: 100%;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 1.5rem 1rem 1rem;
+    padding: 1.5rem 1rem;
     text-align: center;
   }
 
@@ -133,6 +140,11 @@
     line-height: 1.5;
   }
 
+  /* Mobile Chat is intentionally minimal. Repo import lives in the Git tab. */
+  .MobileStartActions {
+    display: none !important;
+  }
+
   /* Remove desktop conversation width constraints on phones/tablets. */
   .MobileChat :global(.max-w-chat) {
     width: 100% !important;
@@ -151,43 +163,19 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* A real app-style footer composer: content scrolls, composer does not. */
   .MobileComposer {
     box-sizing: border-box;
-    position: sticky !important;
-    bottom: 0 !important;
+    position: relative !important;
+    bottom: auto !important;
     z-index: 80;
     width: 100% !important;
     max-width: none !important;
-    margin: auto 0 0 !important;
-    padding: 0.4rem 0 0.65rem;
-    background: linear-gradient(
-      to top,
-      var(--bolt-elements-background-depth-1) 74%,
-      color-mix(in srgb, var(--bolt-elements-background-depth-1) 92%, transparent)
-    );
-  }
-
-  .MobileStartActions {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding: 0 0.15rem 0.2rem;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .MobileStartActions::-webkit-scrollbar {
-    display: none;
-  }
-
-  .MobileStartActions :global(button),
-  .MobileStartActions :global(a) {
-    min-height: 40px;
+    min-height: 0;
     flex: 0 0 auto;
-    touch-action: manipulation;
+    margin: 0 !important;
+    padding: 0.4rem 0 0.65rem;
+    background: var(--bolt-elements-background-depth-1);
   }
 
   .MobileComposer > :global(.z-prompt) {
@@ -242,7 +230,6 @@
   }
 
   .MobileWelcome {
-    min-height: clamp(10rem, 30dvh, 17rem);
     padding-inline: 0.75rem;
   }
 
