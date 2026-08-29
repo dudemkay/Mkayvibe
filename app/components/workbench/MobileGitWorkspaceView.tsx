@@ -15,7 +15,7 @@ function getRepositoryName(remoteUrl: string | null) {
 }
 
 export function MobileGitWorkspaceView() {
-  const { ready, getStatus, pull, commitAll, push } = useGitWorkspace();
+  const { ready, getStatus, fetchRemote, pull, commitAll, push } = useGitWorkspace();
   const { connection } = useGitHubConnection();
   const [status, setStatus] = useState<GitWorkspaceStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,8 @@ export function MobileGitWorkspaceView() {
     setError(null);
 
     try {
-      let nextStatus = status;
+      let nextStatus = await fetchRemote();
+      setStatus(nextStatus);
 
       if (nextStatus.changes.length > 0) {
         const result = await commitAll(commitMessage.trim() || 'Update from Mkayvibe', author);
@@ -78,14 +79,19 @@ export function MobileGitWorkspaceView() {
         throw new Error('This branch has diverged from GitHub. Open Advanced Git to review it safely.');
       }
 
-      if (nextStatus.syncState !== 'synced' || status.changes.length > 0) {
+      if (nextStatus.syncState === 'ahead') {
         nextStatus = await push();
         setStatus(nextStatus);
         toast.success('Synced to GitHub');
         return;
       }
 
-      toast.info('Workspace is already up to date');
+      if (nextStatus.syncState === 'synced') {
+        toast.info('Workspace is already up to date');
+        return;
+      }
+
+      throw new Error('Mkayvibe could not determine the GitHub sync state. Refresh status or open Advanced Git.');
     } catch (syncError) {
       const message = syncError instanceof Error ? syncError.message : 'Could not sync to GitHub.';
       setError(message);
@@ -94,7 +100,7 @@ export function MobileGitWorkspaceView() {
     } finally {
       setBusy(false);
     }
-  }, [author, busy, commitAll, commitMessage, pull, push, refresh, status]);
+  }, [author, busy, commitAll, commitMessage, fetchRemote, pull, push, refresh, status]);
 
   if (advanced) {
     return (
@@ -180,7 +186,7 @@ export function MobileGitWorkspaceView() {
           </div>
 
           <p className="mt-4 text-sm leading-6 text-bolt-elements-textSecondary">
-            Your Chat, Files and Code edits are in this Git working tree. Sync saves the current changes and sends them back to GitHub safely.
+            Your Chat, Files and Code edits are in this Git working tree. Sync checks GitHub first, saves your changes, and sends them back safely.
           </p>
 
           {changeCount > 0 && (
