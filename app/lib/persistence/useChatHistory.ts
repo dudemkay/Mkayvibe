@@ -5,6 +5,7 @@ import { generateId, type JSONValue, type Message } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { logStore } from '~/lib/stores/logs';
+import { sanitizeLegacyGitImportMessages } from '~/lib/git/gitWorkspaceImport';
 import {
   getMessages,
   getNextId,
@@ -87,7 +88,11 @@ export function useChatHistory() {
             }
 
             let filteredMessages = isGitWorkspace
-              ? storedMessages.messages.slice(0, endingIdx)
+              ? sanitizeLegacyGitImportMessages(
+                  storedMessages.messages.slice(0, endingIdx),
+                  storedMessages.metadata?.gitUrl || '',
+                  storedMessages.metadata?.gitBranch,
+                )
               : storedMessages.messages.slice(startingIdx + 1, endingIdx);
             let archivedMessages: Message[] = [];
 
