@@ -39,7 +39,7 @@
     overflow: hidden;
     overscroll-behavior: none;
 
-    > :global(div) {
+    > div {
       min-height: 0;
       overflow: hidden !important;
     }
@@ -149,7 +149,6 @@
     line-height: 1.05;
   }
 
-  /* Hide keyboard-shortcut helper copy on narrow mobile screens. */
   .MobileChat :global(kbd) {
     white-space: nowrap;
   }
