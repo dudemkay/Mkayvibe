@@ -2,22 +2,31 @@ import { describe, expect, it } from 'vitest';
 import GoogleVertexProvider, { buildGoogleVertexBaseUrl } from './google-vertex';
 
 describe('GoogleVertexProvider', () => {
-  it('builds the official Vertex OpenAI-compatible endpoint', () => {
-    expect(buildGoogleVertexBaseUrl(undefined, 'my-project', 'us-central1')).toBe(
-      'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi',
+  it('builds the current global Vertex OpenAI-compatible endpoint', () => {
+    expect(buildGoogleVertexBaseUrl(undefined, 'my-project', 'global')).toBe(
+      'https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi',
     );
   });
 
-  it('prefers an explicit Vertex base URL', () => {
-    expect(buildGoogleVertexBaseUrl('https://example.com/vertex/', 'my-project', 'us-central1')).toBe(
-      'https://example.com/vertex',
+  it('defaults to the global Vertex location', () => {
+    expect(buildGoogleVertexBaseUrl(undefined, 'my-project')).toBe(
+      'https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi',
     );
   });
 
-  it('ships a current Vertex OpenAI-compatible Gemini default', () => {
+  it('prefers an explicit Vertex base URL for regional or custom endpoints', () => {
+    expect(buildGoogleVertexBaseUrl('https://us-central1-aiplatform.googleapis.com/v1beta1/custom/', 'my-project')).toBe(
+      'https://us-central1-aiplatform.googleapis.com/v1beta1/custom',
+    );
+  });
+
+  it('ships current Vertex OpenAI-compatible Gemini defaults', () => {
     const provider = new GoogleVertexProvider();
+    const models = provider.staticModels.map((model) => model.name);
 
-    expect(provider.staticModels.map((model) => model.name)).toContain('google/gemini-3.1-pro-preview');
+    expect(models).toContain('google/gemini-3.5-flash');
+    expect(models).toContain('google/gemini-3.6-flash');
+    expect(models).toContain('google/gemini-3.1-pro-preview');
   });
 
   it('uses configured Vertex model ids', async () => {
