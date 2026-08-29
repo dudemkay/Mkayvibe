@@ -36,7 +36,7 @@ export function MobileWorkspaceNav({ activeView, onChange }: MobileWorkspaceNavP
                 'min-h-11 min-w-0 rounded-lg bg-transparent px-1 py-1.5 text-[11px] font-medium transition-colors',
                 'flex flex-col items-center justify-center gap-0.5',
                 isActive
-                  ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
+                  ? 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentAccent'
                   : 'text-bolt-elements-textTertiary hover:bg-bolt-elements-background-depth-2 hover:text-bolt-elements-textPrimary',
               )}
             >
