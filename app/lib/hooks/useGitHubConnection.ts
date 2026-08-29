@@ -12,7 +12,7 @@ export interface ConnectionState {
   isConnecting: boolean;
   connection: GitHubConnection | null;
   error: string | null;
-  isServerSide: boolean; // Indicates if this is a server-side connection
+  isServerSide: boolean;
 }
 
 export interface UseGitHubConnectionReturn extends ConnectionState {
@@ -30,218 +30,186 @@ export function useGitHubConnection(): UseGitHubConnectionReturn {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Create API instance - will update when connection changes
   useGitHubAPI();
 
-  // Load saved connection on mount
-  useEffect(() => {
-    loadSavedConnection();
+  const loadServerConnection = useCallback(async (): Promise<boolean> => {
+    const response = await fetch('/api/github-user');
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const userData = (await response.json()) as GitHubUserResponse;
+    updateGitHubConnection({
+      user: userData,
+      token: '',
+      tokenType: 'fine-grained',
+    });
+
+    return true;
   }, []);
 
-  const loadSavedConnection = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Check if connection already exists in store (likely from initialization)
-      if (connection?.user) {
-        setIsLoading(false);
-        return;
-      }
-
-      // If we have a token but no user, or incomplete data, refresh
-      if (connection?.token && (!connection.user || !connection.stats)) {
-        await refreshConnectionData(connection);
-      }
-
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading saved connection:', error);
-      setError('Failed to load saved connection');
-      setIsLoading(false);
-
-      // Clean up corrupted data
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [connection]);
-
-  const refreshConnectionData = useCallback(async (connection: GitHubConnection) => {
-    if (!connection.token) {
+  const refreshClientConnection = useCallback(async (currentConnection: GitHubConnection) => {
+    if (!currentConnection.token) {
       return;
     }
 
-    try {
-      // Make direct API call instead of using hook
-      const response = await fetch('https://api.github.com/user', {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          Authorization: `${connection.tokenType === 'classic' ? 'token' : 'Bearer'} ${connection.token}`,
-          'User-Agent': 'Bolt.diy',
-        },
-      });
+    const response = await fetch('https://api.github.com/user', {
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+        Authorization: `${currentConnection.tokenType === 'classic' ? 'token' : 'Bearer'} ${currentConnection.token}`,
+        'User-Agent': 'Mkayvibe',
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const userData = (await response.json()) as GitHubUserResponse;
-
-      const updatedConnection: GitHubConnection = {
-        ...connection,
-        user: userData,
-      };
-
-      updateGitHubConnection(updatedConnection);
-    } catch (error) {
-      console.error('Error refreshing connection data:', error);
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
     }
+
+    const userData = (await response.json()) as GitHubUserResponse;
+    updateGitHubConnection({ ...currentConnection, user: userData });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initialize = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Cloudflare GITHUB_TOKEN is authoritative when configured.
+        const serverConnected = await loadServerConnection();
+
+        if (serverConnected || cancelled) {
+          return;
+        }
+
+        if (connection?.token && !connection.user) {
+          await refreshClientConnection(connection);
+        }
+      } catch (err) {
+        console.error('Error loading GitHub connection:', err);
+
+        if (!cancelled) {
+          setError('Failed to load GitHub connection');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initialize();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const connect = useCallback(async (token: string, tokenType: 'classic' | 'fine-grained') => {
-    console.log('useGitHubConnection.connect called with tokenType:', tokenType);
-
     if (!token.trim()) {
-      console.log('Token validation failed - empty token');
       setError('Token is required');
-
       return;
     }
 
-    console.log('Setting isConnecting to true');
     isConnecting.set(true);
     setError(null);
 
     try {
-      console.log('Making API request to GitHub...');
-
-      // Test the token by fetching user info
       const response = await fetch('https://api.github.com/user', {
         headers: {
           Accept: 'application/vnd.github.v3+json',
           Authorization: `${tokenType === 'classic' ? 'token' : 'Bearer'} ${token}`,
-          'User-Agent': 'Bolt.diy',
+          'User-Agent': 'Mkayvibe',
         },
       });
-
-      console.log('GitHub API response status:', response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
       }
 
       const userData = (await response.json()) as GitHubUserResponse;
+      const connectionData: GitHubConnection = { user: userData, token, tokenType };
 
-      // Create connection object
-      const connectionData: GitHubConnection = {
-        user: userData,
-        token,
-        tokenType,
-      };
-
-      // Set cookies for API requests
       Cookies.set('githubToken', token);
       Cookies.set('githubUsername', userData.login);
-      Cookies.set(
-        'git:github.com',
-        JSON.stringify({
-          username: token,
-          password: 'x-oauth-basic',
-        }),
-      );
-
-      // Update the store
+      Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
       updateGitHubConnection(connectionData);
-
       toast.success(`Connected to GitHub as ${userData.login}`);
-    } catch (error) {
-      console.error('Failed to connect to GitHub:', error);
-
-      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to GitHub';
-
-      setError(errorMessage);
-      toast.error(`Failed to connect: ${errorMessage}`);
-      throw error;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect to GitHub';
+      setError(message);
+      toast.error(`Failed to connect: ${message}`);
+      throw err;
     } finally {
       isConnecting.set(false);
     }
   }, []);
 
   const disconnect = useCallback(() => {
-    // Clear localStorage
     localStorage.removeItem(STORAGE_KEY);
-
-    // Clear all GitHub-related cookies
     Cookies.remove('githubToken');
     Cookies.remove('githubUsername');
     Cookies.remove('git:github.com');
-
-    // Reset store
-    updateGitHubConnection({
-      user: null,
-      token: '',
-      tokenType: 'classic',
-    });
-
+    updateGitHubConnection({ user: null, token: '', tokenType: 'classic' });
     setError(null);
-    toast.success('Disconnected from GitHub');
+    toast.success('Local GitHub connection cleared');
   }, []);
 
   const refreshConnection = useCallback(async () => {
-    if (!connection?.token) {
-      throw new Error('No connection to refresh');
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
-      await refreshConnectionData(connection);
-    } catch (error) {
-      console.error('Error refreshing connection:', error);
-      setError('Failed to refresh connection');
-      throw error;
+      if (!connection?.token) {
+        const connected = await loadServerConnection();
+
+        if (!connected) {
+          throw new Error('No GitHub connection to refresh');
+        }
+
+        return;
+      }
+
+      await refreshClientConnection(connection);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to refresh GitHub connection';
+      setError(message);
+      throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [connection, refreshConnectionData]);
+  }, [connection, loadServerConnection, refreshClientConnection]);
 
   const testConnection = useCallback(async (): Promise<boolean> => {
-    if (!connection) {
-      return false;
-    }
-
     try {
-      // For server-side connections, test via our API
-      const isServerSide = !connection.token;
-
-      if (isServerSide) {
-        const response = await fetch('/api/github-user');
-        return response.ok;
+      if (!connection?.token) {
+        return (await fetch('/api/github-user')).ok;
       }
 
-      // For client-side connections, test directly
       const response = await fetch('https://api.github.com/user', {
         headers: {
           Accept: 'application/vnd.github.v3+json',
           Authorization: `${connection.tokenType === 'classic' ? 'token' : 'Bearer'} ${connection.token}`,
-          'User-Agent': 'Bolt.diy',
+          'User-Agent': 'Mkayvibe',
         },
       });
 
       return response.ok;
-    } catch (error) {
-      console.error('Connection test failed:', error);
+    } catch {
       return false;
     }
   }, [connection]);
 
   return {
-    isConnected: !!connection?.user,
+    isConnected: Boolean(connection?.user),
     isLoading,
     isConnecting: connecting,
     connection,
     error,
-    isServerSide: !connection?.token, // Server-side if no token
+    isServerSide: Boolean(connection?.user && !connection?.token),
     connect,
     disconnect,
     refreshConnection,
