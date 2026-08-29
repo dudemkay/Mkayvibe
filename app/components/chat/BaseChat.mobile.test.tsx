@@ -6,20 +6,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('~/components/sidebar/Menu.client', () => ({ Menu: () => null }));
 vi.mock('./Messages.client', () => ({ Messages: () => <div data-testid="messages" /> }));
-vi.mock('./ChatBox', () => ({
-  ChatBox: ({ isModelSettingsCollapsed }: { isModelSettingsCollapsed: boolean }) => (
-    <div data-testid="chat-box" data-model-settings-collapsed={String(isModelSettingsCollapsed)} />
+vi.mock('./ChatBox', () => ({ ChatBox: () => <div data-testid="desktop-chat-box" /> }));
+vi.mock('~/components/mobile/NativeMobileChatBox', () => ({
+  NativeMobileChatBox: ({ isModelSettingsCollapsed }: { isModelSettingsCollapsed: boolean }) => (
+    <div data-testid="native-mobile-chat-box" data-model-settings-collapsed={String(isModelSettingsCollapsed)} />
   ),
 }));
-vi.mock('./GitCloneButton', () => ({ default: () => <button type="button">Import GitHub</button> }));
-vi.mock('./StarterTemplates', () => ({ default: () => null }));
+vi.mock('~/components/mobile/NativeMobileWorkspace', () => ({
+  NativeMobileWorkspace: ({ view }: { view: string }) => <div data-testid={`native-mobile-workspace-${view}`} />,
+}));
+vi.mock('./GitCloneButton', () => ({ default: () => <button type="button">Clone a repo</button> }));
+vi.mock('./StarterTemplates', () => ({ default: () => <div data-testid="desktop-starters" /> }));
+vi.mock('~/components/chat/ExamplePrompts', () => ({ ExamplePrompts: () => <div data-testid="desktop-prompts" /> }));
 vi.mock('~/components/chat/chatExportAndImport/ImportButtons', () => ({
   ImportButtons: () => <button type="button">Import chat</button>,
 }));
 vi.mock('./APIKeyManager', () => ({ getApiKeysFromCookies: () => ({}) }));
-vi.mock('~/components/workbench/Workbench.client', () => ({
-  Workbench: ({ mobileView }: { mobileView?: string }) => <div data-testid={`workbench-${mobileView || 'desktop'}`} />,
-}));
+vi.mock('~/components/workbench/Workbench.client', () => ({ Workbench: () => <div data-testid="desktop-workbench" /> }));
 vi.mock('~/lib/stores/qrCodeStore', async () => {
   const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
   return { expoUrlAtom: atom('') };
@@ -47,53 +50,62 @@ vi.mock('~/lib/hooks', async (importOriginal) => {
 
 import { BaseChat } from './BaseChat';
 
-describe('BaseChat mobile workspace composition', () => {
+describe('BaseChat native mobile shell', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)));
   });
 
-  it('renders the chat composer immediately before a chat exists', () => {
+  it('mounts only the native chat surface on first load', () => {
     render(<BaseChat chatStarted={false} messages={[]} />);
 
-    expect(screen.getByTestId('chat-box')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-chat-scroll')).toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-chat-surface')).toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-chat-box')).toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-chat-box')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-workbench')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-starters')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-prompts')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Import chat' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clone a repo' })).not.toBeInTheDocument();
   });
 
   it('starts with model settings collapsed on mobile', () => {
     render(<BaseChat chatStarted={false} messages={[]} />);
 
-    expect(screen.getByTestId('chat-box')).toHaveAttribute('data-model-settings-collapsed', 'true');
+    expect(screen.getByTestId('native-mobile-chat-box')).toHaveAttribute('data-model-settings-collapsed', 'true');
   });
 
-  it('renders all five navigation destinations enabled on the initial mobile screen', () => {
-    render(<BaseChat chatStarted={false} messages={[]} />);
-
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Code' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
-  });
-
-  it('marks chat hidden when another mobile workspace tab is selected', () => {
+  it('unmounts Chat when another mobile tab is selected', () => {
     render(<BaseChat chatStarted messages={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
 
-    const chatBox = screen.getByTestId('chat-box');
-    const hiddenChatSurface = chatBox.closest('.hidden');
-    expect(hiddenChatSurface).not.toBeNull();
-    expect(screen.getByTestId('workbench-files')).toBeInTheDocument();
+    expect(screen.queryByTestId('native-mobile-chat-surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('native-mobile-chat-box')).not.toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-workspace-files')).toBeInTheDocument();
   });
 
-  it('switches between workbench surfaces without changing the mobile navigation shell', () => {
+  it('mounts only one workspace surface at a time and can return to Chat', () => {
     render(<BaseChat chatStarted messages={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(screen.getByTestId('workbench-files')).toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-workspace-files')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-    expect(screen.getByTestId('workbench-preview')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByTestId('native-mobile-workspace-files')).not.toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-workspace-preview')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(screen.queryByTestId('native-mobile-workspace-preview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-chat-surface')).toBeInTheDocument();
+  });
+
+  it('keeps all five mobile destinations available', () => {
+    render(<BaseChat chatStarted={false} messages={[]} />);
+
+    for (const label of ['Chat', 'Files', 'Code', 'Preview', 'Git']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
+    }
   });
 });
