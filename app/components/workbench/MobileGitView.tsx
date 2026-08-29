@@ -1,12 +1,446 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from '@remix-run/react';
+import { toast } from 'react-toastify';
+import { Button } from '~/components/ui/Button';
+import { GitHubRepositorySelector } from '~/components/@settings/tabs/github/components/GitHubRepositorySelector';
+import { useGitHubConnection } from '~/lib/hooks/useGitHubConnection';
+import { useGitWorkspace, type GitWorkspaceStatus } from '~/lib/hooks/useGitWorkspace';
+import { buildGitImportUrl } from '~/lib/git/gitImport';
+import { parseGitHubRepository } from '~/lib/git/gitRepository';
+import type { GitFileStatus } from '~/lib/git/gitStatus';
+
+const STATUS_LABELS: Record<GitFileStatus, string> = {
+  added: 'Added',
+  modified: 'Modified',
+  deleted: 'Deleted',
+  untracked: 'Untracked',
+};
+
+type GitAction = 'refresh' | 'fetch' | 'pull' | 'commit' | 'push' | 'createBranch' | 'switchBranch' | 'pr';
+
+interface CreatedPullRequest {
+  number: number;
+  htmlUrl: string;
+  title: string;
+  head: string;
+  base: string;
+}
+
+function getRepositoryName(remoteUrl: string | null) {
+  if (!remoteUrl) {
+    return 'Repository';
+  }
+
+  const normalized = remoteUrl.replace(/#.*$/, '').replace(/\.git$/, '').replace(/\/+$/, '');
+  return normalized.split('/').pop()?.split(':').pop() || 'Repository';
+}
+
 export function MobileGitView() {
+  const navigate = useNavigate();
+  const { ready, getStatus, fetchRemote, pull, commitAll, push, createBranch, switchBranch } = useGitWorkspace();
+  const { connection, isConnected } = useGitHubConnection();
+  const [status, setStatus] = useState<GitWorkspaceStatus | null>(null);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [branchName, setBranchName] = useState('');
+  const [prTitle, setPrTitle] = useState('');
+  const [prBase, setPrBase] = useState('');
+  const [prBody, setPrBody] = useState('');
+  const [createdPullRequest, setCreatedPullRequest] = useState<CreatedPullRequest | null>(null);
+  const [activeAction, setActiveAction] = useState<GitAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const githubRepository = useMemo(() => parseGitHubRepository(status?.remoteUrl), [status?.remoteUrl]);
+
+  const refresh = useCallback(async () => {
+    if (!ready) {
+      return;
+    }
+
+    setActiveAction('refresh');
+    setError(null);
+
+    try {
+      setStatus(await getStatus());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read Git status.');
+    } finally {
+      setActiveAction(null);
+    }
+  }, [getStatus, ready]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const author = useMemo(() => {
+    const user = connection?.user;
+    const login = user?.login || 'mkayvibe-user';
+
+    return {
+      name: user?.name || login,
+      email: `${login}@users.noreply.github.com`,
+    };
+  }, [connection]);
+
+  const runAction = useCallback(
+    async (
+      action: Exclude<GitAction, 'refresh' | 'pr'>,
+      operation: () => Promise<GitWorkspaceStatus | { status: GitWorkspaceStatus }>,
+      successMessage: string,
+    ) => {
+      setActiveAction(action);
+      setError(null);
+
+      try {
+        const result = await operation();
+        setStatus('status' in result ? result.status : result);
+        setCreatedPullRequest(null);
+        toast.success(successMessage);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Git operation failed.';
+        setError(message);
+        toast.error(message);
+      } finally {
+        setActiveAction(null);
+      }
+    },
+    [],
+  );
+
+  const openPullRequest = useCallback(async () => {
+    if (!status?.branch || !githubRepository || !prTitle.trim()) {
+      return;
+    }
+
+    setActiveAction('pr');
+    setError(null);
+    setCreatedPullRequest(null);
+
+    try {
+      const response = await fetch('/api/github-pull-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          owner: githubRepository.owner,
+          repo: githubRepository.repo,
+          head: status.branch,
+          base: prBase.trim(),
+          title: prTitle.trim(),
+          body: prBody.trim(),
+          token: connection?.token || '',
+        }),
+      });
+      const data: any = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || `GitHub could not create the pull request (${response.status}).`);
+      }
+
+      setCreatedPullRequest(data.pullRequest);
+      toast.success(`Pull request #${data.pullRequest.number} created`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create pull request.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setActiveAction(null);
+    }
+  }, [connection?.token, githubRepository, prBase, prBody, prTitle, status?.branch]);
+
+  if (!ready || !status) {
+    return (
+      <section className="flex h-full w-full items-center justify-center p-6 text-center" data-testid="mobile-git-view">
+        <div>
+          <div className="i-svg-spinners:90-ring-with-bg mx-auto mb-3 text-3xl text-bolt-elements-textSecondary" />
+          <p className="text-sm text-bolt-elements-textSecondary">Loading Git workspace...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!status.isRepository) {
+    if (!isConnected || !connection) {
+      return (
+        <section className="flex h-full w-full items-center justify-center p-6 text-center" data-testid="mobile-git-view">
+          <div className="max-w-sm rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 shadow-sm">
+            <div className="i-ph:github-logo mx-auto mb-3 text-4xl text-bolt-elements-textSecondary" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Connect GitHub first</h2>
+            <p className="mt-2 text-sm leading-6 text-bolt-elements-textSecondary">
+              Open Settings → GitHub and connect your account. Then return here to choose a repository and branch.
+            </p>
+          </div>
+        </section>
+      );
+    }
+
+    return (
+      <section
+        className="h-full w-full overflow-y-auto px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4"
+        data-testid="mobile-git-view"
+      >
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-4 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="i-ph:github-logo text-xl text-bolt-elements-textPrimary" aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Choose a GitHub repository</h2>
+            </div>
+            <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+              Select a repository, choose its branch, and Mkayvibe will import it into this workspace.
+            </p>
+          </div>
+
+          <GitHubRepositorySelector
+            onClone={(repoUrl, branch) => navigate(buildGitImportUrl(repoUrl, branch))}
+            className="pb-4"
+          />
+        </div>
+      </section>
+    );
+  }
+
+  const repositoryName = getRepositoryName(status.remoteUrl);
+  const syncText =
+    status.syncState === 'synced'
+      ? 'Up to date'
+      : status.syncState === 'ahead'
+        ? `${status.ahead} ahead`
+        : status.syncState === 'behind'
+          ? `${status.behind} behind`
+          : status.syncState === 'diverged'
+            ? `${status.ahead} ahead, ${status.behind} behind`
+            : 'Fetch to check sync';
+  const isBusy = activeAction !== null;
+  const hasChanges = status.changes.length > 0;
+
   return (
-    <section className="flex h-full w-full items-center justify-center p-6 text-center">
-      <div className="max-w-sm rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 shadow-sm">
-        <div className="i-ph:git-branch mx-auto mb-3 text-4xl text-bolt-elements-textSecondary" aria-hidden="true" />
-        <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Git</h2>
-        <p className="mt-2 text-sm leading-6 text-bolt-elements-textSecondary">
-          Repository controls will appear here after GitHub is connected.
-        </p>
+    <section
+      className="h-full w-full overflow-y-auto px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4"
+      data-testid="mobile-git-view"
+    >
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+        <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="i-ph:github-logo shrink-0 text-xl text-bolt-elements-textPrimary" aria-hidden="true" />
+                <h2 className="truncate text-lg font-semibold text-bolt-elements-textPrimary">{repositoryName}</h2>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-bolt-elements-textSecondary">
+                <span className="inline-flex items-center gap-1 rounded-full border border-bolt-elements-borderColor px-2 py-1">
+                  <span className="i-ph:git-branch" aria-hidden="true" />
+                  {status.branch || 'Detached HEAD'}
+                </span>
+                <span className="rounded-full border border-bolt-elements-borderColor px-2 py-1">{syncText}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isBusy}
+              aria-label="Refresh Git status"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-bolt-elements-textSecondary transition-colors hover:bg-bolt-elements-background-depth-2 hover:text-bolt-elements-textPrimary disabled:opacity-50"
+            >
+              <span className={activeAction === 'refresh' ? 'i-svg-spinners:90-ring-with-bg' : 'i-ph:arrows-clockwise'} />
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void runAction('fetch', fetchRemote, 'Fetched latest GitHub state')}
+              disabled={isBusy || !status.remoteUrl}
+            >
+              {activeAction === 'fetch' ? 'Fetching...' : 'Fetch'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void runAction('pull', () => pull(author), 'Pulled latest changes')}
+              disabled={isBusy || !status.remoteUrl || hasChanges}
+            >
+              {activeAction === 'pull' ? 'Pulling...' : 'Pull'}
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500" role="alert">
+            {error}
+          </div>
+        )}
+
+        <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+          <h3 className="font-medium text-bolt-elements-textPrimary">Branches</h3>
+          <p className="mt-1 text-xs leading-5 text-bolt-elements-textSecondary">
+            Create a new branch from the current commit or switch to an existing local/remote branch.
+          </p>
+          <input
+            type="text"
+            value={branchName}
+            onChange={(event) => setBranchName(event.target.value)}
+            placeholder="Branch name"
+            className="mt-3 w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary outline-none placeholder:text-bolt-elements-textTertiary focus:border-bolt-elements-borderColorActive"
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              onClick={() =>
+                void runAction(
+                  'createBranch',
+                  async () => {
+                    const nextStatus = await createBranch(branchName);
+                    setBranchName('');
+                    return nextStatus;
+                  },
+                  'Branch created and switched',
+                )
+              }
+              disabled={isBusy || hasChanges || !branchName.trim()}
+            >
+              {activeAction === 'createBranch' ? 'Creating...' : 'Create & Switch'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void runAction(
+                  'switchBranch',
+                  async () => {
+                    const nextStatus = await switchBranch(branchName);
+                    setBranchName('');
+                    return nextStatus;
+                  },
+                  'Branch switched',
+                )
+              }
+              disabled={isBusy || hasChanges || !branchName.trim()}
+            >
+              {activeAction === 'switchBranch' ? 'Switching...' : 'Switch'}
+            </Button>
+          </div>
+          {hasChanges && (
+            <p className="mt-2 text-xs text-bolt-elements-textSecondary">Commit your current changes before changing branches.</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 shadow-sm">
+          <div className="flex items-center justify-between border-b border-bolt-elements-borderColor px-4 py-3">
+            <h3 className="font-medium text-bolt-elements-textPrimary">Changes</h3>
+            <span className="text-xs text-bolt-elements-textSecondary">{status.changes.length}</span>
+          </div>
+
+          {status.changes.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <div className="i-ph:check-circle mx-auto mb-2 text-2xl text-bolt-elements-textSecondary" />
+              <p className="text-sm text-bolt-elements-textSecondary">Working tree is clean.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-bolt-elements-borderColor">
+              {status.changes.map((change) => (
+                <div key={change.path} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-bolt-elements-textPrimary">{change.path}</p>
+                    {change.staged && <p className="mt-0.5 text-xs text-bolt-elements-textSecondary">Staged</p>}
+                  </div>
+                  <span className="shrink-0 rounded-md border border-bolt-elements-borderColor px-2 py-1 text-xs text-bolt-elements-textSecondary">
+                    {STATUS_LABELS[change.status]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+          <label htmlFor="mobile-git-commit-message" className="text-sm font-medium text-bolt-elements-textPrimary">
+            Commit changes
+          </label>
+          <textarea
+            id="mobile-git-commit-message"
+            value={commitMessage}
+            onChange={(event) => setCommitMessage(event.target.value)}
+            placeholder="Commit message"
+            rows={3}
+            className="mt-2 w-full resize-none rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary outline-none placeholder:text-bolt-elements-textTertiary focus:border-bolt-elements-borderColorActive"
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              onClick={() =>
+                void runAction(
+                  'commit',
+                  async () => {
+                    const result = await commitAll(commitMessage, author);
+                    setCommitMessage('');
+                    return result;
+                  },
+                  'Changes committed',
+                )
+              }
+              disabled={isBusy || status.changes.length === 0 || !commitMessage.trim()}
+            >
+              {activeAction === 'commit' ? 'Committing...' : 'Commit'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void runAction('push', push, 'Pushed to GitHub')}
+              disabled={isBusy || !status.remoteUrl || !status.branch}
+            >
+              {activeAction === 'push' ? 'Pushing...' : 'Push'}
+            </Button>
+          </div>
+          {status.changes.length > 0 && (
+            <p className="mt-2 text-xs text-bolt-elements-textSecondary">
+              Commit stages all current changes. Pull and branch changes are disabled until the working tree is clean.
+            </p>
+          )}
+        </div>
+
+        {githubRepository && status.branch && isConnected && (
+          <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="i-ph:git-pull-request text-xl text-bolt-elements-textPrimary" aria-hidden="true" />
+              <h3 className="font-medium text-bolt-elements-textPrimary">Pull request</h3>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-bolt-elements-textSecondary">
+              Push your current branch first, then open a pull request. Leave the base blank to use the repository default branch.
+            </p>
+            <input
+              type="text"
+              value={prTitle}
+              onChange={(event) => setPrTitle(event.target.value)}
+              placeholder="PR title"
+              className="mt-3 w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary outline-none placeholder:text-bolt-elements-textTertiary focus:border-bolt-elements-borderColorActive"
+            />
+            <input
+              type="text"
+              value={prBase}
+              onChange={(event) => setPrBase(event.target.value)}
+              placeholder="Base branch (optional)"
+              className="mt-2 w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary outline-none placeholder:text-bolt-elements-textTertiary focus:border-bolt-elements-borderColorActive"
+            />
+            <textarea
+              value={prBody}
+              onChange={(event) => setPrBody(event.target.value)}
+              placeholder="Description (optional)"
+              rows={3}
+              className="mt-2 w-full resize-none rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary outline-none placeholder:text-bolt-elements-textTertiary focus:border-bolt-elements-borderColorActive"
+            />
+            <Button
+              className="mt-3 w-full"
+              onClick={() => void openPullRequest()}
+              disabled={isBusy || !prTitle.trim() || status.branch === prBase.trim()}
+            >
+              {activeAction === 'pr' ? 'Opening...' : 'Open pull request'}
+            </Button>
+
+            {createdPullRequest && (
+              <a
+                href={createdPullRequest.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 flex min-h-10 items-center justify-center rounded-lg border border-bolt-elements-borderColor px-3 py-2 text-sm font-medium text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2"
+              >
+                View PR #{createdPullRequest.number}
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
