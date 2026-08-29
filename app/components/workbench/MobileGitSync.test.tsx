@@ -2,30 +2,22 @@
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { MobileGitView } from './MobileGitView';
+import { MobileGitWorkspaceView } from './MobileGitWorkspaceView';
 
 const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
-  fetchRemote: vi.fn(),
   pull: vi.fn(),
   commitAll: vi.fn(),
   push: vi.fn(),
-  createBranch: vi.fn(),
-  switchBranch: vi.fn(),
-  navigate: vi.fn(),
 }));
 
-vi.mock('@remix-run/react', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('~/lib/hooks/useGitWorkspace', () => ({
   useGitWorkspace: () => ({
     ready: true,
     getStatus: mocks.getStatus,
-    fetchRemote: mocks.fetchRemote,
     pull: mocks.pull,
     commitAll: mocks.commitAll,
     push: mocks.push,
-    createBranch: mocks.createBranch,
-    switchBranch: mocks.switchBranch,
   }),
 }));
 vi.mock('~/lib/hooks/useGitHubConnection', () => ({
@@ -34,11 +26,11 @@ vi.mock('~/lib/hooks/useGitHubConnection', () => ({
     connection: { token: '', user: { login: 'mkay', name: 'Mkay' } },
   }),
 }));
-vi.mock('~/components/@settings/tabs/github/components/GitHubRepositorySelector', () => ({
-  GitHubRepositorySelector: () => null,
+vi.mock('./MobileGitView', () => ({
+  MobileGitView: () => <div>Advanced Git tools</div>,
 }));
 
-describe('MobileGitView primary sync flow', () => {
+describe('MobileGitWorkspaceView primary sync flow', () => {
   it('commits current changes and pushes them with one Sync to GitHub action', async () => {
     mocks.getStatus.mockResolvedValue({
       isRepository: true,
@@ -71,8 +63,8 @@ describe('MobileGitView primary sync flow', () => {
       syncState: 'synced',
     });
 
-    render(<MobileGitView />);
-    await screen.findByText('app.ts');
+    render(<MobileGitWorkspaceView />);
+    expect(await screen.findByText('1 change')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Sync to GitHub' }));
 
@@ -83,5 +75,24 @@ describe('MobileGitView primary sync flow', () => {
       });
       expect(mocks.push).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('keeps detailed Git operations behind Advanced Git', async () => {
+    mocks.getStatus.mockResolvedValue({
+      isRepository: true,
+      branch: 'main',
+      remoteUrl: 'https://github.com/dudemkay/Mkayvibe.git',
+      changes: [],
+      ahead: 0,
+      behind: 0,
+      syncState: 'synced',
+    });
+
+    render(<MobileGitWorkspaceView />);
+    await screen.findByText('Up to date');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced Git' }));
+    expect(screen.getByText('Advanced Git tools')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Sync' })).toBeInTheDocument();
   });
 });
