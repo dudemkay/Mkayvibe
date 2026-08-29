@@ -7,6 +7,8 @@ import React, { type RefCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { Workbench } from '~/components/workbench/Workbench.client';
+import { MobileWorkspaceNav } from '~/components/mobile/MobileWorkspaceNav';
+import type { MobileWorkspaceView } from '~/components/mobile/types';
 import { classNames } from '~/utils/classNames';
 import { PROVIDER_LIST } from '~/utils/constants';
 import { Messages } from './Messages.client';
@@ -28,7 +30,7 @@ import type { ProgressAnnotation } from '~/types/context';
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 import { expoUrlAtom } from '~/lib/stores/qrCodeStore';
 import { useStore } from '@nanostores/react';
-import { StickToBottom, useStickToBottomContext } from '~/lib/hooks';
+import useViewport, { StickToBottom, useStickToBottomContext } from '~/lib/hooks';
 import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
@@ -146,6 +148,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
     const expoUrl = useStore(expoUrlAtom);
     const [qrModalOpen, setQrModalOpen] = useState(false);
+    const isSmallViewport = useViewport(1024);
+    const [mobileView, setMobileView] = useState<MobileWorkspaceView>('chat');
 
     useEffect(() => {
       if (expoUrl) {
@@ -344,12 +348,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const baseChat = (
       <div
         ref={ref}
-        className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
+        className={classNames(styles.BaseChat, 'relative flex h-full w-full min-w-0 overflow-hidden')}
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
+        <div className="flex flex-col lg:flex-row overflow-y-auto overflow-x-hidden w-full h-full min-w-0">
+          <div
+            className={classNames(
+              styles.Chat,
+              styles.MobileChat,
+              'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full min-w-0',
+              {
+                hidden: isSmallViewport && mobileView !== 'chat',
+                [styles.MobileChatInset]: isSmallViewport && chatStarted,
+              },
+            )}
+          >
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
@@ -361,18 +375,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             )}
             <StickToBottom
-              className={classNames('pt-6 px-2 sm:px-6 relative', {
+              className={classNames('pt-6 px-2 sm:px-6 relative min-w-0', {
                 'h-full flex flex-col modern-scrollbar': chatStarted,
               })}
               resize="smooth"
               initial="smooth"
             >
-              <StickToBottom.Content className="flex flex-col gap-4 relative ">
+              <StickToBottom.Content className="flex flex-col gap-4 relative min-w-0">
                 <ClientOnly>
                   {() => {
                     return chatStarted ? (
                       <Messages
-                        className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1"
+                        className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1 min-w-0"
                         messages={messages}
                         isStreaming={isStreaming}
                         append={append}
@@ -388,9 +402,18 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <ScrollToBottom />
               </StickToBottom.Content>
               <div
-                className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6', {
-                  'sticky bottom-2': chatStarted,
+                className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6 min-w-0', {
+                  sticky: chatStarted,
                 })}
+                style={
+                  chatStarted
+                    ? {
+                        bottom: isSmallViewport
+                          ? 'calc(3.75rem + env(safe-area-inset-bottom) + 0.5rem)'
+                          : '0.5rem',
+                      }
+                    : undefined
+                }
               >
                 <div className="flex flex-col gap-2">
                   {deployAlert && (
@@ -494,10 +517,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           </div>
           <ClientOnly>
             {() => (
-              <Workbench chatStarted={chatStarted} isStreaming={isStreaming} setSelectedElement={setSelectedElement} />
+              <Workbench
+                chatStarted={chatStarted}
+                isStreaming={isStreaming}
+                setSelectedElement={setSelectedElement}
+                mobileView={mobileView}
+                onMobileViewChange={setMobileView}
+              />
             )}
           </ClientOnly>
         </div>
+        {chatStarted && isSmallViewport && <MobileWorkspaceNav activeView={mobileView} onChange={setMobileView} />}
       </div>
     );
 
