@@ -4,23 +4,33 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { MobileGitView } from './MobileGitView';
 
-const gitMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   fetchRemote: vi.fn(),
   pull: vi.fn(),
   commitAll: vi.fn(),
   push: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+vi.mock('@remix-run/react', () => ({
+  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock('~/lib/hooks/useGitWorkspace', () => ({
   useGitWorkspace: () => ({
     ready: true,
-    ...gitMocks,
+    getStatus: mocks.getStatus,
+    fetchRemote: mocks.fetchRemote,
+    pull: mocks.pull,
+    commitAll: mocks.commitAll,
+    push: mocks.push,
   }),
 }));
 
 vi.mock('~/lib/hooks/useGitHubConnection', () => ({
   useGitHubConnection: () => ({
+    isConnected: true,
     connection: {
       user: {
         login: 'mkay',
@@ -30,9 +40,17 @@ vi.mock('~/lib/hooks/useGitHubConnection', () => ({
   }),
 }));
 
+vi.mock('~/components/@settings/tabs/github/components/GitHubRepositorySelector', () => ({
+  GitHubRepositorySelector: ({ onClone }: { onClone?: (repoUrl: string, branch?: string) => void }) => (
+    <button onClick={() => onClone?.('https://github.com/dudemkay/Mkayvibe.git', 'feature/mobile git')}>
+      Import test repository
+    </button>
+  ),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
-  gitMocks.getStatus.mockResolvedValue({
+  mocks.getStatus.mockResolvedValue({
     isRepository: true,
     branch: 'main',
     remoteUrl: 'https://github.com/dudemkay/Mkayvibe.git',
@@ -55,7 +73,7 @@ describe('MobileGitView', () => {
   });
 
   it('commits all changes with the entered message', async () => {
-    gitMocks.commitAll.mockResolvedValue({
+    mocks.commitAll.mockResolvedValue({
       oid: 'abc123',
       status: {
         isRepository: true,
@@ -77,15 +95,15 @@ describe('MobileGitView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Commit' }));
 
     await waitFor(() => {
-      expect(gitMocks.commitAll).toHaveBeenCalledWith('Save mobile Git work', {
+      expect(mocks.commitAll).toHaveBeenCalledWith('Save mobile Git work', {
         name: 'Mkay',
         email: 'mkay@users.noreply.github.com',
       });
     });
   });
 
-  it('shows an import hint when there is no repository loaded', async () => {
-    gitMocks.getStatus.mockResolvedValue({
+  it('lets a connected user choose a repository and branch to import', async () => {
+    mocks.getStatus.mockResolvedValue({
       isRepository: false,
       branch: null,
       remoteUrl: null,
@@ -97,7 +115,11 @@ describe('MobileGitView', () => {
 
     render(<MobileGitView />);
 
-    expect(await screen.findByText('No Git repository loaded')).toBeInTheDocument();
-    expect(screen.getByText(/import or clone a GitHub repository/i)).toBeInTheDocument();
+    expect(await screen.findByText('Choose a GitHub repository')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Import test repository' }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/git?url=https%3A%2F%2Fgithub.com%2Fdudemkay%2FMkayvibe.git%23feature%2Fmobile%20git',
+    );
   });
 });
