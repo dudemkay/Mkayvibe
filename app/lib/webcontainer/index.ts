@@ -24,9 +24,9 @@ if (!import.meta.env.SSR) {
     Promise.resolve()
       .then(() => {
         return WebContainer.boot({
-          coep: 'credentialless',
+          coep: 'require-corp',
           workdirName: WORK_DIR_NAME,
-          forwardPreviewErrors: true, // Enable error forwarding from iframes
+          forwardPreviewErrors: true,
         });
       })
       .then(async (webcontainer) => {
@@ -38,11 +38,9 @@ if (!import.meta.env.SSR) {
         const inspectorScript = await response.text();
         await webcontainer.setPreviewScript(inspectorScript);
 
-        // Listen for preview errors
         webcontainer.on('preview-message', (message) => {
           console.log('WebContainer preview message:', message);
 
-          // Handle both uncaught exceptions and unhandled promise rejections
           if (message.type === 'PREVIEW_UNCAUGHT_EXCEPTION' || message.type === 'PREVIEW_UNHANDLED_REJECTION') {
             const isPromise = message.type === 'PREVIEW_UNHANDLED_REJECTION';
             const title = isPromise ? 'Unhandled Promise Rejection' : 'Uncaught Exception';

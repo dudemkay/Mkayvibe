@@ -1,10 +1,14 @@
 import type { WebContainer } from '@webcontainer/api';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { webcontainer as webcontainerPromise } from '~/lib/webcontainer';
+import { BROWSER_GIT_CLONE_OPTIONS, type GitCloneProgressEvent } from '~/lib/git/gitCloneBrowserOptions';
 import git, { type GitAuth, type PromiseFsClient } from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import Cookies from 'js-cookie';
 import { toast } from 'react-toastify';
+
+const WEB_CONTAINER_BOOT_TIMEOUT_MS = 20_000;
+const GIT_CLONE_STALL_TIMEOUT_MS = 90_000;
 
 const lookupSavedPassword = (url: string) => {
   const domain = url.split('/')[2];
@@ -30,22 +34,61 @@ const saveGitAuth = (url: string, auth: GitAuth) => {
 
 export function useGit() {
   const [ready, setReady] = useState(false);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
   const [webcontainer, setWebcontainer] = useState<WebContainer>();
   const [fs, setFs] = useState<PromiseFsClient>();
   const fileData = useRef<Record<string, { data: any; encoding?: string }>>({});
+
   useEffect(() => {
-    webcontainerPromise.then((container) => {
-      fileData.current = {};
-      setWebcontainer(container);
-      setFs(getFs(container, fileData));
-      setReady(true);
-    });
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (active) {
+        setInitializationError(
+          'The browser coding runtime did not start. Reload and try again in a supported modern browser.',
+        );
+      }
+    }, WEB_CONTAINER_BOOT_TIMEOUT_MS);
+
+    webcontainerPromise
+      .then((container) => {
+        if (!active) {
+          return;
+        }
+
+        fileData.current = {};
+        setWebcontainer(container);
+        setFs(getFs(container, fileData));
+        setInitializationError(null);
+        setReady(true);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+
+        console.error('WebContainer initialization failed:', error);
+        setInitializationError(
+          error instanceof Error
+            ? `The browser coding runtime could not start: ${error.message}`
+            : 'The browser coding runtime could not start.',
+        );
+      })
+      .finally(() => window.clearTimeout(timer));
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const gitClone = useCallback(
-    async (url: string, retryCount = 0) => {
+    async (
+      url: string,
+      retryCount = 0,
+      onProgress?: (event: GitCloneProgressEvent) => void,
+    ): Promise<{ workdir: string; data: Record<string, { data: any; encoding?: string }> }> => {
       if (!webcontainer || !fs || !ready) {
-        throw new Error('Webcontainer not initialized. Please try again later.');
+        throw new Error(initializationError || 'Browser coding runtime is not initialized yet.');
       }
 
       fileData.current = {};
@@ -57,14 +100,7 @@ export function useGit() {
         [baseUrl, branch] = url.split('#');
       }
 
-      /*
-       * Skip Git initialization for now - let isomorphic-git handle it
-       * This avoids potential issues with our manual initialization
-       */
-
-      const headers: {
-        [x: string]: string;
-      } = {
+      const headers: Record<string, string> = {
         'User-Agent': 'bolt.diy',
       };
 
@@ -75,58 +111,76 @@ export function useGit() {
       }
 
       try {
-        // Add a small delay before retrying to allow for network recovery
         if (retryCount > 0) {
           await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
           console.log(`Retrying git clone (attempt ${retryCount + 1})...`);
         }
 
-        await git.clone({
-          fs,
-          http,
-          dir: webcontainer.workdir,
-          url: baseUrl,
-          depth: 1,
-          singleBranch: true,
-          ref: branch,
-          corsProxy: '/api/git-proxy',
-          headers,
-          onProgress: (event) => {
-            console.log('Git clone progress:', event);
-          },
-          onAuth: (baseUrl) => {
-            let auth = lookupSavedPassword(baseUrl);
+        await new Promise<void>((resolve, reject) => {
+          let stallTimer = window.setTimeout(() => {
+            reject(new Error('Repository cloning stopped making progress. Check your connection and retry.'));
+          }, GIT_CLONE_STALL_TIMEOUT_MS);
 
-            if (auth) {
-              console.log('Using saved authentication for', baseUrl);
-              return auth;
-            }
+          const resetStallTimer = () => {
+            window.clearTimeout(stallTimer);
+            stallTimer = window.setTimeout(() => {
+              reject(new Error('Repository cloning stopped making progress. Check your connection and retry.'));
+            }, GIT_CLONE_STALL_TIMEOUT_MS);
+          };
 
-            console.log('Repository requires authentication:', baseUrl);
+          git
+            .clone({
+              fs,
+              http,
+              dir: webcontainer.workdir,
+              url: baseUrl,
+              depth: 1,
+              singleBranch: true,
+              ref: branch,
+              corsProxy: '/api/git-proxy',
+              headers,
+              ...BROWSER_GIT_CLONE_OPTIONS,
+              onProgress: (event) => {
+                resetStallTimer();
+                const progressEvent: GitCloneProgressEvent = {
+                  phase: event.phase,
+                  loaded: event.loaded,
+                  total: event.total,
+                };
+                console.log('Git clone progress:', progressEvent);
+                onProgress?.(progressEvent);
+              },
+              onAuth: (authUrl) => {
+                let nextAuth = lookupSavedPassword(authUrl);
 
-            if (confirm('This repository requires authentication. Would you like to enter your GitHub credentials?')) {
-              auth = {
-                username: prompt('Enter username') || '',
-                password: prompt('Enter password or personal access token') || '',
-              };
-              return auth;
-            } else {
-              return { cancel: true };
-            }
-          },
-          onAuthFailure: (baseUrl, _auth) => {
-            console.error(`Authentication failed for ${baseUrl}`);
-            toast.error(
-              `Authentication failed for ${baseUrl.split('/')[2]}. Please check your credentials and try again.`,
-            );
-            throw new Error(
-              `Authentication failed for ${baseUrl.split('/')[2]}. Please check your credentials and try again.`,
-            );
-          },
-          onAuthSuccess: (baseUrl, auth) => {
-            console.log(`Authentication successful for ${baseUrl}`);
-            saveGitAuth(baseUrl, auth);
-          },
+                if (nextAuth) {
+                  console.log('Using saved authentication for', authUrl);
+                  return nextAuth;
+                }
+
+                console.log('Repository requires authentication:', authUrl);
+
+                if (confirm('This repository requires authentication. Would you like to enter your GitHub credentials?')) {
+                  nextAuth = {
+                    username: prompt('Enter username') || '',
+                    password: prompt('Enter password or personal access token') || '',
+                  };
+                  return nextAuth;
+                }
+
+                return { cancel: true };
+              },
+              onAuthFailure: (authUrl, _auth) => {
+                throw new Error(
+                  `Authentication failed for ${authUrl.split('/')[2]}. Reconnect GitHub in Settings and try again.`,
+                );
+              },
+              onAuthSuccess: (authUrl, successfulAuth) => {
+                saveGitAuth(authUrl, successfulAuth);
+              },
+            })
+            .then(resolve, reject)
+            .finally(() => window.clearTimeout(stallTimer));
         });
 
         const data: Record<string, { data: any; encoding?: string }> = {};
@@ -138,47 +192,38 @@ export function useGit() {
         return { workdir: webcontainer.workdir, data };
       } catch (error) {
         console.error('Git clone error:', error);
-
-        // Handle specific error types
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        // Check for common error patterns
         if (errorMessage.includes('Authentication failed')) {
-          toast.error(`Authentication failed. Please check your GitHub credentials and try again.`);
+          toast.error('Authentication failed. Reconnect GitHub and try again.');
           throw error;
         } else if (
           errorMessage.includes('ENOTFOUND') ||
           errorMessage.includes('ETIMEDOUT') ||
-          errorMessage.includes('ECONNREFUSED')
+          errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('Failed to fetch')
         ) {
-          toast.error(`Network error while connecting to repository. Please check your internet connection.`);
+          toast.error('Network error while connecting to repository. Please check your internet connection.');
 
-          // Retry for network errors, up to 3 times
           if (retryCount < 3) {
-            return gitClone(url, retryCount + 1);
+            return gitClone(url, retryCount + 1, onProgress);
           }
 
-          throw new Error(
-            `Failed to connect to repository after multiple attempts. Please check your internet connection.`,
-          );
+          throw new Error('Failed to connect to repository after multiple attempts. Check your connection and retry.');
         } else if (errorMessage.includes('404')) {
-          toast.error(`Repository not found. Please check the URL and make sure the repository exists.`);
-          throw new Error(`Repository not found. Please check the URL and make sure the repository exists.`);
-        } else if (errorMessage.includes('401')) {
-          toast.error(`Unauthorized access to repository. Please connect your GitHub account with proper permissions.`);
-          throw new Error(
-            `Unauthorized access to repository. Please connect your GitHub account with proper permissions.`,
-          );
+          throw new Error('Repository not found. Check that your GitHub connection can access it.');
+        } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+          throw new Error('GitHub denied access to this repository. Reconnect GitHub with repository access and retry.');
         } else {
           toast.error(`Failed to clone repository: ${errorMessage}`);
           throw error;
         }
       }
     },
-    [webcontainer, fs, ready],
+    [webcontainer, fs, ready, initializationError],
   );
 
-  return { ready, gitClone };
+  return { ready, error: initializationError, gitClone };
 }
 
 const getFs = (
@@ -206,13 +251,10 @@ const getFs = (
       }
 
       try {
-        // Handle encoding properly based on data type
         if (data instanceof Uint8Array) {
-          // For binary data, don't pass encoding
           const result = await webcontainer.fs.writeFile(relativePath, data);
           return result;
         } else {
-          // For text data, use the encoding if provided
           const encoding = options?.encoding || 'utf8';
           const result = await webcontainer.fs.writeFile(relativePath, data, encoding);
 
@@ -281,14 +323,13 @@ const getFs = (
         const dirPath = pathUtils.dirname(relativePath);
         const fileName = pathUtils.basename(relativePath);
 
-        // Special handling for .git/index file
         if (relativePath === '.git/index') {
           return {
             isFile: () => true,
             isDirectory: () => false,
             isSymbolicLink: () => false,
-            size: 12, // Size of our empty index
-            mode: 0o100644, // Regular file
+            size: 12,
+            mode: 0o100644,
             mtimeMs: Date.now(),
             ctimeMs: Date.now(),
             birthtimeMs: Date.now(),
@@ -325,7 +366,7 @@ const getFs = (
           isDirectory: () => fileInfo.isDirectory(),
           isSymbolicLink: () => false,
           size: fileInfo.isDirectory() ? 4096 : 1,
-          mode: fileInfo.isDirectory() ? 0o040755 : 0o100644, // Directory or regular file
+          mode: fileInfo.isDirectory() ? 0o040755 : 0o100644,
           mtimeMs: Date.now(),
           ctimeMs: Date.now(),
           birthtimeMs: Date.now(),
@@ -361,18 +402,9 @@ const getFs = (
       throw new Error(`EINVAL: invalid argument, readlink '${path}'`);
     },
     symlink: async (target: string, path: string) => {
-      /*
-       * Since WebContainer doesn't support symlinks,
-       * we'll throw a "operation not supported" error
-       */
       throw new Error(`EPERM: operation not permitted, symlink '${target}' -> '${path}'`);
     },
-
     chmod: async (_path: string, _mode: number) => {
-      /*
-       * WebContainer doesn't support changing permissions,
-       * but we can pretend it succeeded for compatibility
-       */
       return await Promise.resolve();
     },
   },
@@ -380,26 +412,18 @@ const getFs = (
 
 const pathUtils = {
   dirname: (path: string) => {
-    // Handle empty or just filename cases
     if (!path || !path.includes('/')) {
       return '.';
     }
 
-    // Remove trailing slashes
     path = path.replace(/\/+$/, '');
-
-    // Get directory part
     return path.split('/').slice(0, -1).join('/') || '/';
   },
 
   basename: (path: string, ext?: string) => {
-    // Remove trailing slashes
     path = path.replace(/\/+$/, '');
-
-    // Get the last part of the path
     const base = path.split('/').pop() || '';
 
-    // If extension is provided, remove it from the result
     if (ext && base.endsWith(ext)) {
       return base.slice(0, -ext.length);
     }
@@ -407,18 +431,13 @@ const pathUtils = {
     return base;
   },
   relative: (from: string, to: string): string => {
-    // Handle empty inputs
     if (!from || !to) {
       return '.';
     }
 
-    // Normalize paths by removing trailing slashes and splitting
     const normalizePathParts = (p: string) => p.replace(/\/+$/, '').split('/').filter(Boolean);
-
     const fromParts = normalizePathParts(from);
     const toParts = normalizePathParts(to);
-
-    // Find common parts at the start of both paths
     let commonLength = 0;
     const minLength = Math.min(fromParts.length, toParts.length);
 
@@ -430,16 +449,9 @@ const pathUtils = {
       commonLength++;
     }
 
-    // Calculate the number of "../" needed
     const upCount = fromParts.length - commonLength;
-
-    // Get the remaining path parts we need to append
     const remainingPath = toParts.slice(commonLength);
-
-    // Construct the relative path
     const relativeParts = [...Array(upCount).fill('..'), ...remainingPath];
-
-    // Handle empty result case
     return relativeParts.length === 0 ? '.' : relativeParts.join('/');
   },
 };
