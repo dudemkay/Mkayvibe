@@ -52,11 +52,12 @@ describe('BaseChat mobile workspace composition', () => {
     expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
   });
 
-  it('switches to a workbench surface before chat starts', async () => {
+  it('opens an empty mobile section before chat starts', async () => {
     render(<BaseChat chatStarted={false} messages={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(await screen.findByTestId('workbench-files')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Files' })).toBeInTheDocument();
+    expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
   });
 
   it('switches the workbench surface when a mobile tab is selected after chat starts', async () => {
