@@ -79,6 +79,7 @@ body {
   .mkayvibe-control-panel input,
   .mkayvibe-control-panel textarea,
   .mkayvibe-control-panel select {
+    width: 100%;
     max-width: 100%;
   }
 
@@ -91,13 +92,36 @@ body {
     word-break: break-word;
   }
 
+  /* Existing integrations often use desktop justify-between rows. Let those rows wrap instead of overflowing. */
+  .mkayvibe-control-panel .justify-between {
+    flex-wrap: wrap;
+  }
+
+  .mkayvibe-control-panel .gap-4,
+  .mkayvibe-control-panel .gap-6 {
+    max-width: 100%;
+  }
+
   .mkayvibe-control-panel table {
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+  }
+
+  .mkayvibe-control-panel th,
+  .mkayvibe-control-panel td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .mkayvibe-control-panel button,
   .mkayvibe-control-panel [role='button'] {
+    max-width: 100%;
     touch-action: manipulation;
+  }
+
+  .mkayvibe-control-panel button:not([aria-label]),
+  .mkayvibe-control-panel [role='button']:not([aria-label]) {
+    min-height: 44px;
   }
 }
