@@ -23,8 +23,10 @@ export function GitChatRouteBootstrap({ routeId, children }: GitChatRouteBootstr
       return;
     }
 
-    Promise.all([getMessages(db, routeId), getSnapshot(db, routeId)])
-      .then(([storedChat, snapshot]) => {
+    getMessages(db, routeId)
+      .then(async (storedChat) => {
+        const snapshot = storedChat ? await getSnapshot(db, storedChat.id) : undefined;
+
         if (!cancelled) {
           setWorkspace({ chat: storedChat || null, snapshot });
         }

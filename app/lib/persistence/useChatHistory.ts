@@ -65,8 +65,10 @@ export function useChatHistory() {
     }
 
     if (mixedId) {
-      Promise.all([getMessages(db, mixedId), getSnapshot(db, mixedId)])
-        .then(async ([storedMessages, snapshot]) => {
+      getMessages(db, mixedId)
+        .then(async (storedMessages) => {
+          const snapshot = storedMessages ? await getSnapshot(db, storedMessages.id) : undefined;
+
           if (storedMessages && storedMessages.messages.length > 0) {
             const validSnapshot = snapshot || { chatIndex: '', files: {} };
             const summary = validSnapshot.summary;
