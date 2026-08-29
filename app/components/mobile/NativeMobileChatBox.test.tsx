@@ -7,12 +7,10 @@ vi.mock('~/components/chat/ModelSelector', () => ({ ModelSelector: () => <div>Mo
 vi.mock('~/components/chat/APIKeyManager', () => ({ APIKeyManager: () => <div>API key manager</div> }));
 vi.mock('~/components/chat/FilePreview', () => ({ default: () => null }));
 vi.mock('~/components/chat/ScreenshotStateManager', () => ({ ScreenshotStateManager: () => null }));
-vi.mock('~/components/chat/SpeechRecognition', () => ({ SpeechRecognitionButton: () => <button type="button">Voice legacy</button> }));
 vi.mock('~/components/chat/SupabaseConnection', () => ({ SupabaseConnection: () => <div>Supabase control</div> }));
 vi.mock('~/components/workbench/ExpoQrModal', () => ({ ExpoQrModal: () => null }));
 vi.mock('~/components/ui/ColorSchemeDialog', () => ({ ColorSchemeDialog: () => <div>Theme control</div> }));
 vi.mock('~/components/chat/MCPTools', () => ({ McpTools: () => <div>MCP control</div> }));
-vi.mock('~/components/chat/WebSearch.client', () => ({ WebSearch: () => <button type="button">Web search legacy</button> }));
 vi.mock('~/lib/stores/settings', () => ({ LOCAL_PROVIDERS: [] }));
 vi.mock('~/utils/constants', () => ({ PROVIDER_LIST: [] }));
 
@@ -63,13 +61,13 @@ describe('NativeMobileChatBox', () => {
 
     expect(screen.getByRole('button', { name: 'More tools' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Choose model' })).toBeInTheDocument();
-    expect(screen.queryByText('Web search legacy')).not.toBeInTheDocument();
-    expect(screen.queryByText('MCP control')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Chat tools' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'More tools' }));
 
     expect(screen.getByRole('dialog', { name: 'Chat tools' })).toBeInTheDocument();
-    expect(screen.getByText('Web search legacy')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload file' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Web page URL')).toBeInTheDocument();
     expect(screen.getByText('MCP control')).toBeInTheDocument();
   });
 
