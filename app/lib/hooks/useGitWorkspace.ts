@@ -284,9 +284,101 @@ export function useGitWorkspace() {
     return getStatus();
   }, [getStatus, requireWorkspace]);
 
+  const createBranch = useCallback(
+    async (name: string) => {
+      const workspace = requireWorkspace();
+      const branchName = name.trim();
+      const status = await getStatus();
+
+      if (!status.isRepository) {
+        throw new Error('No Git repository is loaded.');
+      }
+
+      if (!branchName) {
+        throw new Error('Enter a branch name first.');
+      }
+
+      if (status.changes.length > 0) {
+        throw new Error('Commit your local changes before creating a branch.');
+      }
+
+      const branches = await git.listBranches({ fs: workspace.fs, dir: workspace.dir });
+
+      if (branches.includes(branchName)) {
+        throw new Error(`Branch "${branchName}" already exists locally.`);
+      }
+
+      await git.branch({
+        fs: workspace.fs,
+        dir: workspace.dir,
+        ref: branchName,
+        checkout: true,
+        force: false,
+      });
+
+      return getStatus();
+    },
+    [getStatus, requireWorkspace],
+  );
+
+  const switchBranch = useCallback(
+    async (name: string) => {
+      const workspace = requireWorkspace();
+      const branchName = name.trim();
+      const status = await getStatus();
+
+      if (!status.isRepository) {
+        throw new Error('No Git repository is loaded.');
+      }
+
+      if (!branchName) {
+        throw new Error('Enter a branch name first.');
+      }
+
+      if (status.changes.length > 0) {
+        throw new Error('Commit your local changes before switching branches.');
+      }
+
+      if (status.branch === branchName) {
+        return status;
+      }
+
+      const localBranches = await git.listBranches({ fs: workspace.fs, dir: workspace.dir });
+
+      if (localBranches.includes(branchName)) {
+        await git.checkout({ fs: workspace.fs, dir: workspace.dir, ref: branchName, force: false });
+        return getStatus();
+      }
+
+      if (!status.remoteUrl) {
+        throw new Error(`Branch "${branchName}" is not available locally and no origin remote is configured.`);
+      }
+
+      await git.fetch({
+        fs: workspace.fs,
+        dir: workspace.dir,
+        remote: 'origin',
+        ref: branchName,
+        singleBranch: true,
+        ...networkOptions(status.remoteUrl),
+      });
+      await git.checkout({
+        fs: workspace.fs,
+        dir: workspace.dir,
+        ref: branchName,
+        remote: 'origin',
+        track: true,
+        force: false,
+      });
+
+      return getStatus();
+    },
+    [getStatus, requireWorkspace],
+  );
+
   return useMemo(
-    () => ({ ready, getStatus, fetchRemote, pull, commitAll, push }),
-    [ready, getStatus, fetchRemote, pull, commitAll, push],
+    () => ({ ready, getStatus, fetchRemote, pull, commitAll, push, createBranch, switchBranch }),
+    [ready, getStatus, fetchRemote, pull, commitAll, push, createBranch, switchBranch],
   );
 }
 
