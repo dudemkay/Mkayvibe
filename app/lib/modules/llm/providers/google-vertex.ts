@@ -22,8 +22,6 @@ export function buildGoogleVertexBaseUrl(
 
   const normalizedLocation = location.trim() || 'global';
 
-  // Google's current OpenAI-compatible Vertex endpoint uses the shared aiplatform.googleapis.com host.
-  // A custom regional/v1beta1 endpoint can still be supplied through GOOGLE_VERTEX_BASE_URL.
   return `https://aiplatform.googleapis.com/v1/projects/${projectId.trim()}/locations/${normalizedLocation}/endpoints/openapi`;
 }
 
@@ -40,21 +38,28 @@ export default class GoogleVertexProvider extends BaseProvider {
 
   staticModels: ModelInfo[] = [
     {
-      name: 'google/gemini-3.5-flash',
-      label: 'Gemini 3.5 Flash (Vertex)',
+      name: 'gemini-3.7-flash',
+      label: 'Gemini 3.7 Flash (Vertex)',
       provider: this.name,
       maxTokenAllowed: 1048576,
       maxCompletionTokens: 65536,
     },
     {
-      name: 'google/gemini-3.6-flash',
+      name: 'gemini-3.6-flash',
       label: 'Gemini 3.6 Flash (Vertex)',
       provider: this.name,
       maxTokenAllowed: 1048576,
       maxCompletionTokens: 65536,
     },
     {
-      name: 'google/gemini-3.1-pro-preview',
+      name: 'gemini-3.5-flash',
+      label: 'Gemini 3.5 Flash (Vertex)',
+      provider: this.name,
+      maxTokenAllowed: 1048576,
+      maxCompletionTokens: 65536,
+    },
+    {
+      name: 'gemini-3.1-pro-preview',
       label: 'Gemini 3.1 Pro Preview (Vertex)',
       provider: this.name,
       maxTokenAllowed: 1048576,
