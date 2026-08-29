@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +27,6 @@ vi.mock('~/lib/stores/workbench', () => ({
     showTerminal: { get: () => false, subscribe: () => () => undefined },
   },
 }));
-vi.mock('~/lib/hooks', () => ({}));
 
 import { EditorPanel } from './EditorPanel';
 
@@ -33,9 +34,9 @@ describe('EditorPanel mobile modes', () => {
   it('shows the file browser without the code editor in files mode', () => {
     render(<EditorPanel mobileMode="files" />);
 
-    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Locks' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Files' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Locks' })).toBeInTheDocument();
     expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument();
   });
 
@@ -55,6 +56,6 @@ describe('EditorPanel mobile modes', () => {
     render(<EditorPanel mobileMode="code" />);
 
     expect(screen.getByTestId('code-editor')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Files' })).not.toBeInTheDocument();
   });
 });
