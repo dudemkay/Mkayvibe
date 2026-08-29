@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react';
-import type { LinksFunction } from '@remix-run/cloudflare';
+import { json, type HeadersFunction, type LinksFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react';
 import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
@@ -10,6 +10,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ClientOnly } from 'remix-utils/client-only';
 import { cssTransition, ToastContainer } from 'react-toastify';
+import { getWebContainerCoepMode } from './lib/webcontainer/coepMode';
 
 import reactToastifyStyles from 'react-toastify/dist/ReactToastify.css?url';
 import globalStyles from './styles/index.scss?url';
@@ -20,6 +21,25 @@ import 'virtual:uno.css';
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
   exit: 'animated fadeOutRight',
+});
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const coep = getWebContainerCoepMode(request.headers.get('user-agent') || '');
+
+  return json(
+    {},
+    {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': coep,
+      },
+    },
+  );
+}
+
+export const headers: HeadersFunction = ({ loaderHeaders }) => ({
+  'Cross-Origin-Opener-Policy': loaderHeaders.get('Cross-Origin-Opener-Policy') || 'same-origin',
+  'Cross-Origin-Embedder-Policy': loaderHeaders.get('Cross-Origin-Embedder-Policy') || 'credentialless',
 });
 
 export const links: LinksFunction = () => [
