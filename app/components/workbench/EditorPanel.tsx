@@ -87,6 +87,7 @@ export const EditorPanel = memo(
       onFileSelect?.(value);
 
       if (mobileMode === 'files' && value) {
+        workbenchStore.currentView.set('code');
         onMobileFileOpened?.();
       }
     };
