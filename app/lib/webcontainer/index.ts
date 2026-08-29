@@ -1,6 +1,7 @@
 import { WebContainer } from '@webcontainer/api';
 import { WORK_DIR_NAME } from '~/utils/constants';
 import { cleanStackTrace } from '~/utils/stacktrace';
+import { getWebContainerCoepMode } from './coepMode';
 
 interface WebContainerContext {
   loaded: boolean;
@@ -23,10 +24,12 @@ if (!import.meta.env.SSR) {
     import.meta.hot?.data.webcontainer ??
     Promise.resolve()
       .then(() => {
+        const coep = getWebContainerCoepMode(navigator.userAgent);
+
         return WebContainer.boot({
-          coep: 'credentialless',
+          coep,
           workdirName: WORK_DIR_NAME,
-          forwardPreviewErrors: true, // Enable error forwarding from iframes
+          forwardPreviewErrors: true,
         });
       })
       .then(async (webcontainer) => {
@@ -38,11 +41,9 @@ if (!import.meta.env.SSR) {
         const inspectorScript = await response.text();
         await webcontainer.setPreviewScript(inspectorScript);
 
-        // Listen for preview errors
         webcontainer.on('preview-message', (message) => {
           console.log('WebContainer preview message:', message);
 
-          // Handle both uncaught exceptions and unhandled promise rejections
           if (message.type === 'PREVIEW_UNCAUGHT_EXCEPTION' || message.type === 'PREVIEW_UNHANDLED_REJECTION') {
             const isPromise = message.type === 'PREVIEW_UNHANDLED_REJECTION';
             const title = isPromise ? 'Unhandled Promise Rejection' : 'Uncaught Exception';
