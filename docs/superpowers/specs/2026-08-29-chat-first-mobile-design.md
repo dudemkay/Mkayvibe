@@ -1,58 +1,111 @@
-# Mkayvibe Chat-First Mobile Design
+# Mkayvibe Native Mobile Shell Design
 
 ## Goal
 
-Make Mkayvibe behave like a modern mobile AI playground from the first page load: Chat is immediately usable, the prompt composer is always visible, GitHub import is available as a secondary chat action, and Files/Code/Preview/Git remain connected workspace tabs.
+Give Mkayvibe a genuinely phone-native browser interface without changing the working desktop workspace or provider/GitHub backends.
 
-## Scope
+## Reference patterns
 
-Mobile/tablet viewports below 1024px only. Desktop layout and all provider/GitHub backend integrations remain unchanged.
+The final mobile architecture follows patterns used by current mobile AI products and open-source implementations:
 
-## Mobile start experience
+- single-pane phone navigation rather than simultaneous chat/editor panes
+- conversation and composer as separate layout regions
+- composer pinned by layout, not by overlapping `fixed`/`sticky` desktop panels
+- model/provider selection as a bottom sheet
+- one active workspace surface at a time
+- 44–48px touch targets and horizontally scrollable secondary toolbars
+- `visualViewport` handling for mobile software keyboards
 
-- Chat is the default and primary surface.
-- `chatStarted=false` must not hide or push the composer below the viewport.
-- The welcome content lives inside the mobile chat scroll area rather than above it.
-- The mobile composer stays visible at the bottom above the persistent workspace tab bar.
-- Model settings start collapsed on mobile to avoid a settings-heavy first screen.
-- Import actions are shown as compact start actions immediately above the composer, including GitHub import.
-- The old desktop intro/import/template composition remains unchanged for desktop.
+## Hard separation
 
-## Mobile conversation experience
+At `<1024px`, `BaseChat` takes a dedicated mobile return path.
 
-- Messages use the full available mobile width with safe padding.
-- Code/preformatted content scrolls horizontally instead of widening the page.
-- The composer remains reachable while the software keyboard is open.
-- `window.visualViewport.height` is reflected into a CSS variable so iOS/Android keyboard changes resize the chat shell.
-- Safe-area insets are respected above the bottom workspace navigation.
+The mobile path does **not** mount the desktop `ChatBox` or desktop `Workbench`.
 
-## Workspace navigation
+It mounts exactly one of:
 
-Persistent mobile tabs remain Chat / Files / Code / Preview / Git.
+1. `NativeMobileChatBox` + conversation surface when `mobileView === 'chat'`
+2. `NativeMobileWorkspace` when the active view is Files, Code, Preview, or Git
 
-- Chat: always usable.
-- Git: always usable, including before a project exists.
-- Files: empty state before a workspace; real file browser after import/build.
-- Code: empty state before a workspace; editor after import/build.
-- Preview: empty state before a workspace; full preview after a runnable project exists.
+The persistent `MobileWorkspaceNav` is a normal final grid row in the mobile shell. It is navigation only and never renders content overlays.
 
-## GitHub import
+## Mobile layout
 
-GitHub may be entered from either the Chat start actions or the Git tab. Both paths use the existing server-managed GitHub authentication and existing repo/branch import flow. No GitHub credential logic changes are part of this feature.
+The shell is a two-row CSS grid:
 
-## Safety / compatibility
+- row 1: `minmax(0, 1fr)` active surface
+- row 2: mobile workspace navigation + safe area
 
-- Do not modify Google Gemini, Vertex, Azure OpenAI, Cloudflare Workers AI, Bedrock, OpenAI, or provider registry code.
-- Do not modify GitHub server auth, proxy, commit/push/pull, or PR backend logic.
-- Keep desktop markup/behavior unchanged wherever practical; mobile-specific branching and CSS must be gated below 1024px.
-- No new dependency is required.
+The shell height is driven by `--mk-mobile-viewport-height`, synchronized from `window.visualViewport`, minus the existing application header height.
 
-## Acceptance criteria
+### Chat
 
-1. On a phone, first load shows a usable prompt composer without scrolling.
-2. Mobile model settings are collapsed by default.
-3. GitHub/import actions are available immediately from Chat.
-4. Opening the keyboard does not hide the composer.
-5. Git remains usable before a project starts.
-6. After project import, Chat, Files, Code, Preview and Git operate on the same workspace.
-7. Desktop provider/GitHub workflows remain unchanged.
+Chat is another two-row grid:
+
+- scrollable conversation / empty state
+- non-scrolling composer region
+
+No legacy Import Chat, Import Folder, Clone button, starter-template grid, or default prompt grid is rendered in the mobile chat path.
+
+GitHub repository import belongs in the Git tab.
+
+### Composer
+
+`NativeMobileChatBox` keeps the existing Mkayvibe chat actions and provider/model callbacks but uses a phone layout:
+
+- 16px textarea to prevent iOS zoom
+- compact horizontal action strip
+- attachment, web search, prompt enhance, speech, theme, MCP, discuss/build, model, Supabase controls
+- model/provider settings open in a full-width bottom sheet rather than expanding inside the composer
+
+### Workspace
+
+`NativeMobileWorkspace` reuses the existing underlying stores/components without the desktop Workbench container:
+
+- Files: mobile `EditorPanel` file mode
+- Code: mobile `EditorPanel` code mode, Diff and Terminal controls in a compact header
+- Preview: existing Preview inside the active mobile surface
+- Git: existing `MobileGitView`
+
+Selecting a file in Files switches the active shell view to Code.
+
+Before a project exists, Files/Code/Preview render passive local empty states. Git remains usable so a repository can bootstrap the workspace.
+
+## State
+
+The selected mobile view is independent of provider/model state. It is stored in session storage so transient chat/provider re-renders cannot unexpectedly reset the user to Chat.
+
+## Containment
+
+Global mobile CSS is scoped to the native shell:
+
+- no page-level horizontal overflow
+- `min-width: 0` containment for flex/grid descendants
+- long text wraps
+- code and tables scroll horizontally
+- media and preview iframes stay within the viewport
+- touch targets use touch manipulation
+
+## Isolation requirements
+
+This mobile change must not modify:
+
+- Google Gemini / AI Studio provider implementation
+- Google Vertex implementation
+- Azure OpenAI implementation
+- provider registry/server request logic
+- GitHub server auth/proxy/push/pull logic
+
+Desktop continues through the existing `ChatBox` + `Workbench` rendering path.
+
+## Verification
+
+Automated tests assert:
+
+- first mobile render mounts the native shell only
+- desktop ChatBox/Workbench/start templates are absent from mobile DOM
+- changing tabs unmounts Chat before mounting the selected workspace
+- only one workspace surface is mounted at once
+- navigation does not generate full-screen overlays
+
+Runtime remains pending a real Cloudflare branch-preview phone test when CI/local execution is unavailable.
