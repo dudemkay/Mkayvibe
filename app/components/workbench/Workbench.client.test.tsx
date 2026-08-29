@@ -11,13 +11,6 @@ vi.mock('~/lib/hooks', () => ({
   default: () => testState.smallViewport,
 }));
 
-vi.mock('nanostores', () => ({
-  computed: (store: { get: () => unknown }, project: (value: unknown) => unknown) => ({
-    get: () => project(store.get()),
-    subscribe: () => () => undefined,
-  }),
-}));
-
 vi.mock('./EditorPanel', () => ({
   EditorPanel: ({ mobileMode }: { mobileMode?: string }) => <div data-testid={`editor-${mobileMode || 'desktop'}`} />,
 }));
@@ -27,31 +20,27 @@ vi.mock('./MobileGitView', () => ({ MobileGitView: () => <div data-testid="git-v
 vi.mock('~/components/chat/chatExportAndImport/ExportChatButton', () => ({ ExportChatButton: () => null }));
 vi.mock('~/lib/persistence', () => ({ useChatHistory: () => ({ exportChat: vi.fn() }) }));
 vi.mock('~/lib/stores/previews', () => ({ usePreviewStore: () => ({ refreshAllPreviews: vi.fn() }) }));
-vi.mock('~/lib/stores/streaming', () => ({ streamingState: { get: () => false, subscribe: () => () => undefined } }));
-vi.mock('~/lib/stores/chat', () => ({
-  chatStore: {
-    get: () => ({ showChat: true }),
-    subscribe: () => () => undefined,
-    setKey: vi.fn(),
-  },
-}));
+vi.mock('~/lib/stores/streaming', async () => {
+  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
+  return { streamingState: atom(false) };
+});
+vi.mock('~/lib/stores/chat', async () => {
+  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
+  return { chatStore: atom({ showChat: true }) };
+});
 
-vi.mock('~/lib/stores/workbench', () => {
-  const atom = <T,>(value: T) => ({
-    get: () => value,
-    set: vi.fn(),
-    subscribe: () => () => undefined,
-  });
+vi.mock('~/lib/stores/workbench', async () => {
+  const { atom } = await vi.importActual<typeof import('nanostores')>('nanostores');
 
   return {
     workbenchStore: {
       previews: atom([]),
       showWorkbench: atom(true),
-      selectedFile: atom(undefined),
+      selectedFile: atom<string | undefined>(undefined),
       currentDocument: atom(undefined),
-      unsavedFiles: atom(new Set()),
+      unsavedFiles: atom(new Set<string>()),
       files: atom({}),
-      currentView: atom('code'),
+      currentView: atom<'code' | 'diff' | 'preview'>('code'),
       showTerminal: atom(false),
       setDocuments: vi.fn(),
       setCurrentDocumentContent: vi.fn(),
