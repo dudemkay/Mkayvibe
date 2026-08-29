@@ -10,6 +10,7 @@ import { EditorPanel } from '~/components/workbench/EditorPanel';
 import { DiffView } from '~/components/workbench/DiffView';
 import { Preview } from '~/components/workbench/Preview';
 import { MobileGitView } from '~/components/workbench/MobileGitView';
+import { MobileGitRepositoryPicker } from './MobileGitRepositoryPicker.client';
 import type {
   OnChangeCallback as OnEditorChange,
   OnScrollCallback as OnEditorScroll,
@@ -99,7 +100,7 @@ export function NativeMobileWorkspace({
 
   const renderSurface = () => {
     if (view === 'git') {
-      return <MobileGitView />;
+      return chatStarted ? <MobileGitView /> : <MobileGitRepositoryPicker />;
     }
 
     if (!chatStarted) {
