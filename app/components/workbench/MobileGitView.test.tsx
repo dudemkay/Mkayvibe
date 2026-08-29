@@ -5,6 +5,8 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { MobileGitView } from './MobileGitView';
 
 const mocks = vi.hoisted(() => ({
+  ready: true,
+  initializationError: null as string | null,
   getStatus: vi.fn(),
   fetchRemote: vi.fn(),
   pull: vi.fn(),
@@ -22,7 +24,8 @@ vi.mock('@remix-run/react', () => ({
 
 vi.mock('~/lib/hooks/useGitWorkspace', () => ({
   useGitWorkspace: () => ({
-    ready: true,
+    ready: mocks.ready,
+    initializationError: mocks.initializationError,
     getStatus: mocks.getStatus,
     fetchRemote: mocks.fetchRemote,
     pull: mocks.pull,
@@ -66,6 +69,8 @@ const cleanStatus = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.ready = true;
+  mocks.initializationError = null;
   vi.stubGlobal('fetch', mocks.fetch);
   mocks.getStatus.mockResolvedValue({
     ...cleanStatus,
@@ -84,6 +89,26 @@ describe('MobileGitView', () => {
     expect(screen.getByText('1 ahead')).toBeInTheDocument();
     expect(screen.getByText('app.ts')).toBeInTheDocument();
     expect(screen.getByText('Modified')).toBeInTheDocument();
+  });
+
+  it('shows the repository picker before WebContainer finishes booting', async () => {
+    mocks.ready = false;
+
+    render(<MobileGitView />);
+
+    expect(await screen.findByText('Choose a GitHub repository')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import test repository' })).toBeEnabled();
+    expect(screen.queryByText('Loading Git workspace...')).not.toBeInTheDocument();
+  });
+
+  it('shows a runtime warning instead of spinning forever when WebContainer boot fails', async () => {
+    mocks.ready = false;
+    mocks.initializationError = 'WebContainer failed to start';
+
+    render(<MobileGitView />);
+
+    expect(await screen.findByText('Choose a GitHub repository')).toBeInTheDocument();
+    expect(screen.getByText(/runtime could not start/i)).toBeInTheDocument();
   });
 
   it('commits all changes with the entered message', async () => {
