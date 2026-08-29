@@ -1,7 +1,7 @@
 import { json } from '@remix-run/cloudflare';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { buildGitHubProxyAuthorization } from '~/lib/git/githubAuth';
 
-// Allowed headers to forward to the target server
 const ALLOW_HEADERS = [
   'accept-encoding',
   'accept-language',
@@ -22,7 +22,6 @@ const ALLOW_HEADERS = [
   'x-requested-with',
 ];
 
-// Headers to expose from the target server's response
 const EXPOSE_HEADERS = [
   'accept-ranges',
   'age',
@@ -42,15 +41,15 @@ const EXPOSE_HEADERS = [
   'x-redirected-url',
 ];
 
-export async function action({ request, params }: ActionFunctionArgs) {
-  return handleProxyRequest(request, params['*']);
+export async function action({ request, params, context }: ActionFunctionArgs) {
+  return handleProxyRequest(request, params['*'], context);
 }
 
-export async function loader({ request, params }: LoaderFunctionArgs) {
-  return handleProxyRequest(request, params['*']);
+export async function loader({ request, params, context }: LoaderFunctionArgs) {
+  return handleProxyRequest(request, params['*'], context);
 }
 
-async function handleProxyRequest(request: Request, path: string | undefined) {
+async function handleProxyRequest(request: Request, path: string | undefined, context: any) {
   try {
     if (!path) {
       return json({ error: 'Invalid proxy URL format' }, { status: 400 });
@@ -80,7 +79,6 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     const url = new URL(request.url);
     const targetURL = `https://${domain}/${remainingPath}${url.search}`;
 
-    // Never log request header values here. Git Authorization headers can contain credentials.
     console.log('Git proxy request:', request.method, domain);
 
     const headers = new Headers();
@@ -89,6 +87,15 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       if (request.headers.has(header)) {
         headers.set(header, request.headers.get(header)!);
       }
+    }
+
+    const serverAuthorization = buildGitHubProxyAuthorization(domain, {
+      cloudflareEnv: context?.cloudflare?.env || {},
+      processEnv: process.env,
+    });
+
+    if (serverAuthorization) {
+      headers.set('Authorization', serverAuthorization);
     }
 
     headers.set('Host', domain);
