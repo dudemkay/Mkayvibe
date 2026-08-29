@@ -9,7 +9,7 @@ import { usePreviewStore } from '~/lib/stores/previews';
 import { EditorPanel } from '~/components/workbench/EditorPanel';
 import { DiffView } from '~/components/workbench/DiffView';
 import { Preview } from '~/components/workbench/Preview';
-import { MobileGitView } from '~/components/workbench/MobileGitView';
+import { MobileGitWorkspaceView } from '~/components/workbench/MobileGitWorkspaceView';
 import { MobileGitRepositoryPicker } from './MobileGitRepositoryPicker.client';
 import type {
   OnChangeCallback as OnEditorChange,
@@ -28,7 +28,7 @@ const titles: Record<Exclude<MobileWorkspaceView, 'chat'>, string> = {
   files: 'Files',
   code: 'Code',
   preview: 'Preview',
-  git: 'GitHub',
+  git: 'Sync',
 };
 
 export function NativeMobileWorkspace({
@@ -100,13 +100,13 @@ export function NativeMobileWorkspace({
 
   const renderSurface = () => {
     if (view === 'git') {
-      return chatStarted ? <MobileGitView /> : <MobileGitRepositoryPicker />;
+      return chatStarted ? <MobileGitWorkspaceView /> : <MobileGitRepositoryPicker />;
     }
 
     if (!chatStarted) {
       const emptyCopy = {
-        files: ['i-ph:folder-open', 'No project files yet', 'Start a build in Chat or import a repository from Git.'],
-        code: ['i-ph:code', 'No code open yet', 'Start a build in Chat or import a repository from Git.'],
+        files: ['i-ph:folder-open', 'No project files yet', 'Start a build in Chat or import a repository from Sync.'],
+        code: ['i-ph:code', 'No code open yet', 'Start a build in Chat or import a repository from Sync.'],
         preview: ['i-ph:monitor', 'Nothing to preview yet', 'Your live app preview will appear here once a project is running.'],
       } as const;
       const [icon, title, description] = emptyCopy[view];
