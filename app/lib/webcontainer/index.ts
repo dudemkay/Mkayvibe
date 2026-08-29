@@ -1,7 +1,6 @@
 import { WebContainer } from '@webcontainer/api';
 import { WORK_DIR_NAME } from '~/utils/constants';
 import { cleanStackTrace } from '~/utils/stacktrace';
-import { getWebContainerCoepMode } from './coepMode';
 
 interface WebContainerContext {
   loaded: boolean;
@@ -24,10 +23,8 @@ if (!import.meta.env.SSR) {
     import.meta.hot?.data.webcontainer ??
     Promise.resolve()
       .then(() => {
-        const coep = getWebContainerCoepMode(navigator.userAgent);
-
         return WebContainer.boot({
-          coep,
+          coep: 'require-corp',
           workdirName: WORK_DIR_NAME,
           forwardPreviewErrors: true,
         });
