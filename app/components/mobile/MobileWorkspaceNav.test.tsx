@@ -15,6 +15,16 @@ describe('MobileWorkspaceNav', () => {
     expect(screen.getByRole('button', { name: 'Git' })).toBeInTheDocument();
   });
 
+  it('keeps every destination enabled before a workspace starts', () => {
+    render(<MobileWorkspaceNav activeView="chat" onChange={() => undefined} workspaceReady={false} />);
+
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Code' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
+  });
+
   it('marks the active destination and emits view changes', () => {
     const onChange = vi.fn();
     render(<MobileWorkspaceNav activeView="code" onChange={onChange} />);
@@ -26,17 +36,11 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('keeps navigation visible before a workspace exists while disabling non-chat destinations', () => {
+  it('emits non-chat destinations before a workspace exists', () => {
     const onChange = vi.fn();
     render(<MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />);
 
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Code' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Git' })).toBeDisabled();
-
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith('files');
   });
 });
