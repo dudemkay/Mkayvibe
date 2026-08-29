@@ -384,10 +384,15 @@ export const Workbench = memo(
       }
     }, []);
 
+    const handleMobileFileOpened = useCallback(() => {
+      workbenchStore.currentView.set('code');
+      onMobileViewChange?.('code');
+    }, [onMobileViewChange]);
+
     const mobileEditor = (mode: 'files' | 'code') => (
       <EditorPanel
         mobileMode={mode}
-        onMobileFileOpened={mode === 'files' ? () => onMobileViewChange?.('code') : undefined}
+        onMobileFileOpened={mode === 'files' ? handleMobileFileOpened : undefined}
         editorDocument={currentDocument}
         isStreaming={isStreaming}
         selectedFile={selectedFile}
