@@ -317,10 +317,6 @@ const getFs = (
       const relativePath = pathUtils.relative(webcontainer.workdir, path);
       return webcontainer.fs.readdir(relativePath, options);
     },
-    rm: async (path: string, options: any) => {
-      const relativePath = pathUtils.relative(webcontainer.workdir, path);
-      return webcontainer.fs.rm(relativePath, { ...(options || {}) });
-    },
     rmdir: async (path: string, options: any) => {
       const relativePath = pathUtils.relative(webcontainer.workdir, path);
       return webcontainer.fs.rm(relativePath, { recursive: true, ...(options || {}) });
@@ -414,10 +410,7 @@ const pathUtils = {
       commonLength++;
     }
 
-    const relativeParts = [
-      ...Array(fromParts.length - commonLength).fill('..'),
-      ...toParts.slice(commonLength),
-    ];
+    const relativeParts = [...Array(fromParts.length - commonLength).fill('..'), ...toParts.slice(commonLength)];
 
     return relativeParts.length === 0 ? '.' : relativeParts.join('/');
   },
