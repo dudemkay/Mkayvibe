@@ -6,4 +6,5 @@ export function toggleNavigationMenu() {
   }
 
   window.dispatchEvent(new Event(MKAYVIBE_TOGGLE_MENU_EVENT));
+  window.dispatchEvent(new MouseEvent('mousemove', { clientX: 1, clientY: 1, bubbles: true }));
 }
