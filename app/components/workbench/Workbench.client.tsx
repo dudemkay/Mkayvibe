@@ -21,7 +21,6 @@ import { renderLogger } from '~/utils/logger';
 import { EditorPanel } from './EditorPanel';
 import { Preview } from './Preview';
 import useViewport from '~/lib/hooks';
-
 import { usePreviewStore } from '~/lib/stores/previews';
 import { chatStore } from '~/lib/stores/chat';
 import type { ElementInfo } from './Inspector';
@@ -29,6 +28,8 @@ import { ExportChatButton } from '~/components/chat/chatExportAndImport/ExportCh
 import { useChatHistory } from '~/lib/persistence';
 import { streamingState } from '~/lib/stores/streaming';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import type { MobileWorkspaceView } from '~/components/mobile/types';
+import { MobileGitView } from './MobileGitView';
 
 interface WorkspaceProps {
   chatStarted?: boolean;
@@ -38,6 +39,8 @@ interface WorkspaceProps {
   };
   updateChatMestaData?: (metadata: any) => void;
   setSelectedElement?: (element: ElementInfo | null) => void;
+  mobileView?: MobileWorkspaceView;
+  onMobileViewChange?: (view: MobileWorkspaceView) => void;
 }
 
 const viewTransition = { ease: cubicEasingFn };
@@ -112,7 +115,7 @@ const FileModifiedDropdown = memo(
                 leaveFrom="transform scale-100 opacity-100"
                 leaveTo="transform scale-95 opacity-0"
               >
-                <Popover.Panel className="absolute right-0 z-20 mt-2 w-80 origin-top-right rounded-xl bg-bolt-elements-background-depth-2 shadow-xl border border-bolt-elements-borderColor">
+                <Popover.Panel className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-xl bg-bolt-elements-background-depth-2 shadow-xl border border-bolt-elements-borderColor">
                   <div className="p-2">
                     <div className="relative mx-2 mb-2">
                       <input
@@ -183,7 +186,6 @@ const FileModifiedDropdown = memo(
                                       </span>
                                     </div>
                                     {(() => {
-                                      // Calculate diff stats
                                       const { additions, deletions } = (() => {
                                         if (!history.originalContent) {
                                           return { additions: 0, deletions: 0 };
@@ -287,13 +289,12 @@ export const Workbench = memo(
     metadata: _metadata,
     updateChatMestaData: _updateChatMestaData,
     setSelectedElement,
+    mobileView = 'code',
+    onMobileViewChange,
   }: WorkspaceProps) => {
     renderLogger.trace('Workbench');
 
     const [fileHistory, setFileHistory] = useState<Record<string, FileHistory>>({});
-
-    // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
-
     const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
     const showWorkbench = useStore(workbenchStore.showWorkbench);
     const selectedFile = useStore(workbenchStore.selectedFile);
@@ -314,10 +315,22 @@ export const Workbench = memo(
     };
 
     useEffect(() => {
-      if (hasPreview) {
+      if (!isSmallViewport && hasPreview) {
         setSelectedView('preview');
       }
-    }, [hasPreview]);
+    }, [hasPreview, isSmallViewport]);
+
+    useEffect(() => {
+      if (!isSmallViewport) {
+        return;
+      }
+
+      if (mobileView === 'preview') {
+        setSelectedView('preview');
+      } else if ((mobileView === 'code' || mobileView === 'files') && selectedView === 'preview') {
+        setSelectedView('code');
+      }
+    }, [isSmallViewport, mobileView, selectedView]);
 
     useEffect(() => {
       workbenchStore.setDocuments(files);
@@ -339,7 +352,6 @@ export const Workbench = memo(
       workbenchStore
         .saveCurrentDocument()
         .then(() => {
-          // Explicitly refresh all previews after a file save
           const previewStore = usePreviewStore();
           previewStore.refreshAllPreviews();
         })
@@ -372,138 +384,218 @@ export const Workbench = memo(
       }
     }, []);
 
+    const mobileEditor = (mode: 'files' | 'code') => (
+      <EditorPanel
+        mobileMode={mode}
+        onMobileFileOpened={mode === 'files' ? () => onMobileViewChange?.('code') : undefined}
+        editorDocument={currentDocument}
+        isStreaming={isStreaming}
+        selectedFile={selectedFile}
+        files={files}
+        unsavedFiles={unsavedFiles}
+        fileHistory={fileHistory}
+        onFileSelect={onFileSelect}
+        onEditorScroll={onEditorScroll}
+        onEditorChange={onEditorChange}
+        onFileSave={onFileSave}
+        onFileReset={onFileReset}
+      />
+    );
+
+    const desktopEditor = (
+      <EditorPanel
+        editorDocument={currentDocument}
+        isStreaming={isStreaming}
+        selectedFile={selectedFile}
+        files={files}
+        unsavedFiles={unsavedFiles}
+        fileHistory={fileHistory}
+        onFileSelect={onFileSelect}
+        onEditorScroll={onEditorScroll}
+        onEditorChange={onEditorChange}
+        onFileSave={onFileSave}
+        onFileReset={onFileReset}
+      />
+    );
+
+    const renderMobileSurface = () => {
+      switch (mobileView) {
+        case 'files':
+          return mobileEditor('files');
+        case 'preview':
+          return <Preview setSelectedElement={setSelectedElement} />;
+        case 'git':
+          return <MobileGitView />;
+        case 'code':
+        case 'chat':
+        default:
+          if (selectedView === 'diff') {
+            return <DiffView fileHistory={fileHistory} setFileHistory={setFileHistory} />;
+          }
+
+          return mobileEditor('code');
+      }
+    };
+
     return (
       chatStarted && (
         <motion.div
           initial="closed"
-          animate={showWorkbench ? 'open' : 'closed'}
+          animate={isSmallViewport ? 'open' : showWorkbench ? 'open' : 'closed'}
           variants={workbenchVariants}
           className="z-workbench"
+          style={isSmallViewport ? { width: '100%' } : undefined}
         >
           <div
             className={classNames(
-              'fixed top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
+              'fixed z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
+              isSmallViewport
+                ? 'left-0 right-0 top-[calc(var(--header-height)+0.5rem)] bottom-[calc(3.75rem+env(safe-area-inset-bottom))] w-full'
+                : 'top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)]',
               {
-                'w-full': isSmallViewport,
-                'left-0': showWorkbench && isSmallViewport,
-                'left-[var(--workbench-left)]': showWorkbench,
-                'left-[100%]': !showWorkbench,
+                'left-[var(--workbench-left)]': !isSmallViewport && showWorkbench,
+                'left-[100%]': !isSmallViewport && !showWorkbench,
               },
             )}
           >
-            <div className="absolute inset-0 px-2 lg:px-4">
-              <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
-                <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor gap-1.5">
-                  <button
-                    className={`${showChat ? 'i-ph:sidebar-simple-fill' : 'i-ph:sidebar-simple'} text-lg text-bolt-elements-textSecondary mr-1`}
-                    disabled={!canHideChat || isSmallViewport}
-                    onClick={() => {
-                      if (canHideChat) {
-                        chatStore.setKey('showChat', !showChat);
-                      }
-                    }}
-                  />
-                  <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
-                  <div className="ml-auto" />
-                  {selectedView === 'code' && (
-                    <div className="flex overflow-y-auto">
-                      {/* Export Chat Button */}
-                      <ExportChatButton exportChat={exportChat} />
-
-                      {/* Sync Button */}
-                      <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden ml-1">
-                        <DropdownMenu.Root>
-                          <DropdownMenu.Trigger
-                            disabled={isSyncing || streaming}
+            <div className={classNames('absolute inset-0', isSmallViewport ? 'px-1' : 'px-2 lg:px-4')}>
+              <div className="h-full min-h-0 min-w-0 flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
+                {isSmallViewport ? (
+                  <div className="flex min-h-11 items-center gap-1.5 border-b border-bolt-elements-borderColor px-2 py-1.5">
+                    <div className="min-w-0 flex-1 truncate text-sm font-medium text-bolt-elements-textSecondary">
+                      {mobileView === 'files'
+                        ? 'Files'
+                        : mobileView === 'preview'
+                          ? 'Preview'
+                          : mobileView === 'git'
+                            ? 'Git'
+                            : selectedView === 'diff'
+                              ? 'Diff'
+                              : 'Code'}
+                    </div>
+                    {mobileView === 'code' && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label={selectedView === 'diff' ? 'Return to code' : 'Open diff'}
+                          onClick={() => setSelectedView(selectedView === 'diff' ? 'code' : 'diff')}
+                          className="min-h-10 min-w-10 rounded-md bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
+                        >
+                          <span className={selectedView === 'diff' ? 'i-ph:code' : 'i-ph:git-diff'} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Toggle terminal"
+                          onClick={() => workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get())}
+                          className="min-h-10 min-w-10 rounded-md bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
+                        >
+                          <span className="i-ph:terminal" aria-hidden="true" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor gap-1.5">
+                    <button
+                      className={`${showChat ? 'i-ph:sidebar-simple-fill' : 'i-ph:sidebar-simple'} text-lg text-bolt-elements-textSecondary mr-1`}
+                      disabled={!canHideChat}
+                      onClick={() => {
+                        if (canHideChat) {
+                          chatStore.setKey('showChat', !showChat);
+                        }
+                      }}
+                    />
+                    <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
+                    <div className="ml-auto" />
+                    {selectedView === 'code' && (
+                      <div className="flex overflow-y-auto">
+                        <ExportChatButton exportChat={exportChat} />
+                        <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden ml-1">
+                          <DropdownMenu.Root>
+                            <DropdownMenu.Trigger
+                              disabled={isSyncing || streaming}
+                              className="rounded-md items-center justify-center [&:is(:disabled,.disabled)]:cursor-not-allowed [&:is(:disabled,.disabled)]:opacity-60 px-3 py-1.5 text-xs bg-accent-500 text-white hover:text-bolt-elements-item-contentAccent [&:not(:disabled,.disabled)]:hover:bg-bolt-elements-button-primary-backgroundHover outline-accent-500 flex gap-1.7"
+                            >
+                              {isSyncing ? 'Syncing...' : 'Sync'}
+                              <span className={classNames('i-ph:caret-down transition-transform')} />
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Content
+                              className={classNames(
+                                'min-w-[240px] z-[250]',
+                                'bg-white dark:bg-[#141414]',
+                                'rounded-lg shadow-lg',
+                                'border border-gray-200/50 dark:border-gray-800/50',
+                                'animate-in fade-in-0 zoom-in-95',
+                                'py-1',
+                              )}
+                              sideOffset={5}
+                              align="end"
+                            >
+                              <DropdownMenu.Item
+                                className={classNames(
+                                  'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
+                                )}
+                                onClick={handleSyncFiles}
+                                disabled={isSyncing}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isSyncing ? (
+                                    <div className="i-ph:spinner" />
+                                  ) : (
+                                    <div className="i-ph:cloud-arrow-down" />
+                                  )}
+                                  <span>{isSyncing ? 'Syncing...' : 'Sync Files'}</span>
+                                </div>
+                              </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                          </DropdownMenu.Root>
+                        </div>
+                        <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden ml-1">
+                          <button
+                            onClick={() => {
+                              workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
+                            }}
                             className="rounded-md items-center justify-center [&:is(:disabled,.disabled)]:cursor-not-allowed [&:is(:disabled,.disabled)]:opacity-60 px-3 py-1.5 text-xs bg-accent-500 text-white hover:text-bolt-elements-item-contentAccent [&:not(:disabled,.disabled)]:hover:bg-bolt-elements-button-primary-backgroundHover outline-accent-500 flex gap-1.7"
                           >
-                            {isSyncing ? 'Syncing...' : 'Sync'}
-                            <span className={classNames('i-ph:caret-down transition-transform')} />
-                          </DropdownMenu.Trigger>
-                          <DropdownMenu.Content
-                            className={classNames(
-                              'min-w-[240px] z-[250]',
-                              'bg-white dark:bg-[#141414]',
-                              'rounded-lg shadow-lg',
-                              'border border-gray-200/50 dark:border-gray-800/50',
-                              'animate-in fade-in-0 zoom-in-95',
-                              'py-1',
-                            )}
-                            sideOffset={5}
-                            align="end"
-                          >
-                            <DropdownMenu.Item
-                              className={classNames(
-                                'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
-                              )}
-                              onClick={handleSyncFiles}
-                              disabled={isSyncing}
-                            >
-                              <div className="flex items-center gap-2">
-                                {isSyncing ? (
-                                  <div className="i-ph:spinner" />
-                                ) : (
-                                  <div className="i-ph:cloud-arrow-down" />
-                                )}
-                                <span>{isSyncing ? 'Syncing...' : 'Sync Files'}</span>
-                              </div>
-                            </DropdownMenu.Item>
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Root>
+                            <div className="i-ph:terminal" />
+                            Toggle Terminal
+                          </button>
+                        </div>
                       </div>
+                    )}
 
-                      {/* Toggle Terminal Button */}
-                      <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden ml-1">
-                        <button
-                          onClick={() => {
-                            workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
-                          }}
-                          className="rounded-md items-center justify-center [&:is(:disabled,.disabled)]:cursor-not-allowed [&:is(:disabled,.disabled)]:opacity-60 px-3 py-1.5 text-xs bg-accent-500 text-white hover:text-bolt-elements-item-contentAccent [&:not(:disabled,.disabled)]:hover:bg-bolt-elements-button-primary-backgroundHover outline-accent-500 flex gap-1.7"
-                        >
-                          <div className="i-ph:terminal" />
-                          Toggle Terminal
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedView === 'diff' && (
-                    <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
-                  )}
-                  <IconButton
-                    icon="i-ph:x-circle"
-                    className="-mr-1"
-                    size="xl"
-                    onClick={() => {
-                      workbenchStore.showWorkbench.set(false);
-                    }}
-                  />
-                </div>
-                <div className="relative flex-1 overflow-hidden">
-                  <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : '-100%' }}>
-                    <EditorPanel
-                      editorDocument={currentDocument}
-                      isStreaming={isStreaming}
-                      selectedFile={selectedFile}
-                      files={files}
-                      unsavedFiles={unsavedFiles}
-                      fileHistory={fileHistory}
-                      onFileSelect={onFileSelect}
-                      onEditorScroll={onEditorScroll}
-                      onEditorChange={onEditorChange}
-                      onFileSave={onFileSave}
-                      onFileReset={onFileReset}
+                    {selectedView === 'diff' && (
+                      <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
+                    )}
+                    <IconButton
+                      icon="i-ph:x-circle"
+                      className="-mr-1"
+                      size="xl"
+                      onClick={() => {
+                        workbenchStore.showWorkbench.set(false);
+                      }}
                     />
-                  </View>
-                  <View
-                    initial={{ x: '100%' }}
-                    animate={{ x: selectedView === 'diff' ? '0%' : selectedView === 'code' ? '100%' : '-100%' }}
-                  >
-                    <DiffView fileHistory={fileHistory} setFileHistory={setFileHistory} />
-                  </View>
-                  <View initial={{ x: '100%' }} animate={{ x: selectedView === 'preview' ? '0%' : '100%' }}>
-                    <Preview setSelectedElement={setSelectedElement} />
-                  </View>
+                  </div>
+                )}
+                <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
+                  {isSmallViewport ? (
+                    <div className="absolute inset-0 min-h-0 min-w-0">{renderMobileSurface()}</div>
+                  ) : (
+                    <>
+                      <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : '-100%' }}>
+                        {desktopEditor}
+                      </View>
+                      <View
+                        initial={{ x: '100%' }}
+                        animate={{ x: selectedView === 'diff' ? '0%' : selectedView === 'code' ? '100%' : '-100%' }}
+                      >
+                        <DiffView fileHistory={fileHistory} setFileHistory={setFileHistory} />
+                      </View>
+                      <View initial={{ x: '100%' }} animate={{ x: selectedView === 'preview' ? '0%' : '100%' }}>
+                        <Preview setSelectedElement={setSelectedElement} />
+                      </View>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -514,7 +606,6 @@ export const Workbench = memo(
   },
 );
 
-// View component for rendering content with motion transitions
 interface ViewProps extends HTMLMotionProps<'div'> {
   children: JSX.Element;
 }
