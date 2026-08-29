@@ -37,11 +37,11 @@ export default class GoogleVertexProvider extends BaseProvider {
 
   staticModels: ModelInfo[] = [
     {
-      name: 'google/gemini-3.5-flash',
-      label: 'Gemini 3.5 Flash (Vertex)',
+      name: 'google/gemini-3.1-pro-preview',
+      label: 'Gemini 3.1 Pro Preview (Vertex)',
       provider: this.name,
-      maxTokenAllowed: 128000,
-      maxCompletionTokens: 32768,
+      maxTokenAllowed: 1048576,
+      maxCompletionTokens: 65536,
     },
   ];
 
@@ -53,8 +53,8 @@ export default class GoogleVertexProvider extends BaseProvider {
     const configuredModels = settings?.models || getProviderEnvironmentValue(this.config.modelsKey, serverEnv);
 
     return parseConfiguredModels(configuredModels, this.name, {
-      maxTokenAllowed: 128000,
-      maxCompletionTokens: 32768,
+      maxTokenAllowed: 1048576,
+      maxCompletionTokens: 65536,
     });
   }
 
