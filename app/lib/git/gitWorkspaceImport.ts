@@ -23,7 +23,7 @@ export function createGitWorkspaceImportMessage(gitUrl: string, gitBranch?: stri
     role: 'assistant',
     id: generateId(),
     createdAt: new Date(),
-    content: `GitHub workspace connected: ${repositoryName}${branchText}. The repository is loaded as a real Git working tree so Chat, Files, Code, Preview and Sync all work on the same project.`,
+    content: `GitHub workspace connected: ${repositoryName}${branchText}. The repository is loaded as a real Git working tree, so Chat, Files, Code and Sync all work on the same project. Preview will appear when the project dev server is running.`,
   };
 }
 
