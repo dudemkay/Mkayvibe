@@ -25,7 +25,6 @@ vi.mock('~/lib/hooks/useGitHubConnection', () => ({
       user: {
         login: 'mkay',
         name: 'Mkay',
-        email: 'mkay@example.com',
       },
     },
   }),
@@ -80,7 +79,7 @@ describe('MobileGitView', () => {
     await waitFor(() => {
       expect(gitMocks.commitAll).toHaveBeenCalledWith('Save mobile Git work', {
         name: 'Mkay',
-        email: 'mkay@example.com',
+        email: 'mkay@users.noreply.github.com',
       });
     });
   });
