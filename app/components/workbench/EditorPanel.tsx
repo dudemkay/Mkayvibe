@@ -22,9 +22,9 @@ import { FileBreadcrumb } from './FileBreadcrumb';
 import { FileTree } from './FileTree';
 import { DEFAULT_TERMINAL_SIZE, TerminalTabs } from './terminal/TerminalTabs';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { Search } from './Search'; // <-- Ensure Search is imported
-import { classNames } from '~/utils/classNames'; // <-- Import classNames if not already present
-import { LockManager } from './LockManager'; // <-- Import LockManager
+import { Search } from './Search';
+import { classNames } from '~/utils/classNames';
+import { LockManager } from './LockManager';
 
 interface EditorPanelProps {
   files?: FileMap;
@@ -38,6 +38,8 @@ interface EditorPanelProps {
   onFileSelect?: (value?: string) => void;
   onFileSave?: OnEditorSave;
   onFileReset?: () => void;
+  mobileMode?: 'desktop' | 'files' | 'code';
+  onMobileFileOpened?: () => void;
 }
 
 const DEFAULT_EDITOR_SIZE = 100 - DEFAULT_TERMINAL_SIZE;
@@ -57,6 +59,8 @@ export const EditorPanel = memo(
     onEditorScroll,
     onFileSave,
     onFileReset,
+    mobileMode = 'desktop',
+    onMobileFileOpened,
   }: EditorPanelProps) => {
     renderLogger.trace('EditorPanel');
 
@@ -76,105 +80,138 @@ export const EditorPanel = memo(
         return false;
       }
 
-      // Make sure unsavedFiles is a Set before calling has()
       return unsavedFiles instanceof Set && unsavedFiles.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
+
+    const handleFileSelect = (value?: string) => {
+      onFileSelect?.(value);
+
+      if (mobileMode === 'files' && value) {
+        onMobileFileOpened?.();
+      }
+    };
+
+    const fileBrowser = (
+      <Tabs.Root defaultValue="files" className="flex h-full min-w-0 flex-col">
+        <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-1">
+          <div className="h-full flex-shrink-0 flex items-center justify-between w-full min-w-0">
+            <Tabs.List className="h-full flex-shrink-0 flex items-center min-w-0 overflow-x-auto">
+              <Tabs.Trigger
+                value="files"
+                className={classNames(
+                  'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                )}
+              >
+                Files
+              </Tabs.Trigger>
+              <Tabs.Trigger
+                value="search"
+                className={classNames(
+                  'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                )}
+              >
+                Search
+              </Tabs.Trigger>
+              <Tabs.Trigger
+                value="locks"
+                className={classNames(
+                  'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                )}
+              >
+                Locks
+              </Tabs.Trigger>
+            </Tabs.List>
+          </div>
+        </PanelHeader>
+
+        <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none">
+          <FileTree
+            className="h-full"
+            files={files}
+            hideRoot
+            unsavedFiles={unsavedFiles}
+            fileHistory={fileHistory}
+            rootFolder={WORK_DIR}
+            selectedFile={selectedFile}
+            onFileSelect={handleFileSelect}
+          />
+        </Tabs.Content>
+
+        <Tabs.Content value="search" className="flex-grow overflow-auto focus-visible:outline-none">
+          <Search />
+        </Tabs.Content>
+
+        <Tabs.Content value="locks" className="flex-grow overflow-auto focus-visible:outline-none">
+          <LockManager />
+        </Tabs.Content>
+      </Tabs.Root>
+    );
+
+    const codeSurface = (
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <PanelHeader className="overflow-x-auto">
+          {activeFileSegments?.length ? (
+            <div className="flex min-w-0 flex-1 items-center text-sm">
+              <div className="min-w-0 flex-1 overflow-x-auto">
+                <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={handleFileSelect} />
+              </div>
+              {activeFileUnsaved && (
+                <div className="flex shrink-0 gap-1 ml-2">
+                  <PanelHeaderButton onClick={onFileSave}>
+                    <div className="i-ph:floppy-disk-duotone" />
+                    Save
+                  </PanelHeaderButton>
+                  <PanelHeaderButton onClick={onFileReset}>
+                    <div className="i-ph:clock-counter-clockwise-duotone" />
+                    Reset
+                  </PanelHeaderButton>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </PanelHeader>
+        <div className="h-full min-h-0 flex-1 overflow-hidden modern-scrollbar">
+          <CodeMirrorEditor
+            theme={theme}
+            editable={!isStreaming && editorDocument !== undefined}
+            settings={editorSettings}
+            doc={editorDocument}
+            autoFocusOnDocumentChange={!isMobile()}
+            onScroll={onEditorScroll}
+            onChange={onEditorChange}
+            onSave={onFileSave}
+          />
+        </div>
+      </div>
+    );
+
+    if (mobileMode === 'files') {
+      return <div className="h-full min-h-0 min-w-0 overflow-hidden">{fileBrowser}</div>;
+    }
+
+    if (mobileMode === 'code') {
+      return (
+        <PanelGroup direction="vertical" className="h-full min-h-0 min-w-0">
+          <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
+            {codeSurface}
+          </Panel>
+          <PanelResizeHandle />
+          <TerminalTabs />
+        </PanelGroup>
+      );
+    }
 
     return (
       <PanelGroup direction="vertical">
         <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
           <PanelGroup direction="horizontal">
             <Panel defaultSize={20} minSize={15} collapsible className="border-r border-bolt-elements-borderColor">
-              <div className="h-full">
-                <Tabs.Root defaultValue="files" className="flex flex-col h-full">
-                  <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-1">
-                    <div className="h-full flex-shrink-0 flex items-center justify-between w-full">
-                      <Tabs.List className="h-full flex-shrink-0 flex items-center">
-                        <Tabs.Trigger
-                          value="files"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Files
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="search"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Search
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="locks"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Locks
-                        </Tabs.Trigger>
-                      </Tabs.List>
-                    </div>
-                  </PanelHeader>
-
-                  <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <FileTree
-                      className="h-full"
-                      files={files}
-                      hideRoot
-                      unsavedFiles={unsavedFiles}
-                      fileHistory={fileHistory}
-                      rootFolder={WORK_DIR}
-                      selectedFile={selectedFile}
-                      onFileSelect={onFileSelect}
-                    />
-                  </Tabs.Content>
-
-                  <Tabs.Content value="search" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <Search />
-                  </Tabs.Content>
-
-                  <Tabs.Content value="locks" className="flex-grow overflow-auto focus-visible:outline-none">
-                    <LockManager />
-                  </Tabs.Content>
-                </Tabs.Root>
-              </div>
+              <div className="h-full">{fileBrowser}</div>
             </Panel>
 
             <PanelResizeHandle />
             <Panel className="flex flex-col" defaultSize={80} minSize={20}>
-              <PanelHeader className="overflow-x-auto">
-                {activeFileSegments?.length && (
-                  <div className="flex items-center flex-1 text-sm">
-                    <FileBreadcrumb pathSegments={activeFileSegments} files={files} onFileSelect={onFileSelect} />
-                    {activeFileUnsaved && (
-                      <div className="flex gap-1 ml-auto -mr-1.5">
-                        <PanelHeaderButton onClick={onFileSave}>
-                          <div className="i-ph:floppy-disk-duotone" />
-                          Save
-                        </PanelHeaderButton>
-                        <PanelHeaderButton onClick={onFileReset}>
-                          <div className="i-ph:clock-counter-clockwise-duotone" />
-                          Reset
-                        </PanelHeaderButton>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </PanelHeader>
-              <div className="h-full flex-1 overflow-hidden modern-scrollbar">
-                <CodeMirrorEditor
-                  theme={theme}
-                  editable={!isStreaming && editorDocument !== undefined}
-                  settings={editorSettings}
-                  doc={editorDocument}
-                  autoFocusOnDocumentChange={!isMobile()}
-                  onScroll={onEditorScroll}
-                  onChange={onEditorChange}
-                  onSave={onFileSave}
-                />
-              </div>
+              {codeSurface}
             </Panel>
           </PanelGroup>
         </Panel>
