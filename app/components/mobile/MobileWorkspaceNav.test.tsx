@@ -25,4 +25,18 @@ describe('MobileWorkspaceNav', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect(onChange).toHaveBeenCalledWith('preview');
   });
+
+  it('keeps navigation visible before a workspace exists while disabling non-chat destinations', () => {
+    const onChange = vi.fn();
+    render(<MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />);
+
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Code' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Git' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
