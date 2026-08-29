@@ -443,7 +443,9 @@ export const Workbench = memo(
           initial="closed"
           animate={isSmallViewport ? 'open' : showWorkbench ? 'open' : 'closed'}
           variants={workbenchVariants}
-          className="z-workbench"
+          className={classNames('z-workbench', {
+            hidden: isSmallViewport && mobileView === 'chat',
+          })}
           style={isSmallViewport ? { width: '100%' } : undefined}
         >
           <div
