@@ -42,18 +42,8 @@ describe('BaseChat mobile workspace composition', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)));
   });
 
-  it('renders the five-tab navigation on the initial mobile screen', () => {
+  it('renders all five navigation destinations enabled on the initial mobile screen', () => {
     render(<BaseChat chatStarted={false} messages={[]} />);
-
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Code' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Git' })).toBeDisabled();
-  });
-
-  it('enables all five mobile navigation destinations after chat starts', () => {
-    render(<BaseChat chatStarted messages={[]} />);
 
     expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
@@ -62,7 +52,14 @@ describe('BaseChat mobile workspace composition', () => {
     expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
   });
 
-  it('switches the workbench surface when a mobile tab is selected', async () => {
+  it('switches to a workbench surface before chat starts', async () => {
+    render(<BaseChat chatStarted={false} messages={[]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
+    expect(await screen.findByTestId('workbench-files')).toBeInTheDocument();
+  });
+
+  it('switches the workbench surface when a mobile tab is selected after chat starts', async () => {
     render(<BaseChat chatStarted messages={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Files' }));
