@@ -12,4 +12,16 @@ describe('navigation events', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener(MKAYVIBE_TOGGLE_MENU_EVENT, listener);
   });
+
+  it('also triggers the existing sidebar edge-open mouse behavior', () => {
+    const listener = vi.fn();
+    window.addEventListener('mousemove', listener);
+
+    toggleNavigationMenu();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    const event = listener.mock.calls[0][0] as MouseEvent;
+    expect(event.clientX).toBe(1);
+    window.removeEventListener('mousemove', listener);
+  });
 });
