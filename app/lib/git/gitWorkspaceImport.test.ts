@@ -1,5 +1,10 @@
+import type { Message } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { createGitWorkspaceImportMessage, parseGitWorkspaceTarget } from './gitWorkspaceImport';
+import {
+  createGitWorkspaceImportMessage,
+  parseGitWorkspaceTarget,
+  sanitizeLegacyGitImportMessages,
+} from './gitWorkspaceImport';
 
 describe('parseGitWorkspaceTarget', () => {
   it('separates a selected branch from the repository URL', () => {
@@ -26,5 +31,35 @@ describe('createGitWorkspaceImportMessage', () => {
     expect(content).toContain('main');
     expect(content).not.toContain('<boltArtifact');
     expect(content).not.toContain('<boltAction');
+  });
+});
+
+describe('sanitizeLegacyGitImportMessages', () => {
+  it('replaces the old imported-files artifact but preserves later AI artifacts', () => {
+    const messages: Message[] = [
+      {
+        id: 'legacy-import',
+        role: 'assistant',
+        content:
+          'Cloning repo\n<boltArtifact id="imported-files" title="Git Cloned Files"><boltAction type="file" filePath="app.ts">old</boltAction></boltArtifact>',
+      },
+      {
+        id: 'later-build',
+        role: 'assistant',
+        content:
+          '<boltArtifact id="feature-work" title="Feature"><boltAction type="file" filePath="app.ts">new</boltAction></boltArtifact>',
+      },
+    ];
+
+    const sanitized = sanitizeLegacyGitImportMessages(
+      messages,
+      'https://github.com/dudemkay/Mkayvibe.git',
+      'main',
+    );
+
+    expect(String(sanitized[0].content)).not.toContain('<boltArtifact');
+    expect(String(sanitized[0].content)).toContain('GitHub workspace connected');
+    expect(sanitized[0].id).toBe('legacy-import');
+    expect(sanitized[1]).toEqual(messages[1]);
   });
 });
