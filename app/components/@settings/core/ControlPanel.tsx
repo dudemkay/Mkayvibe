@@ -216,7 +216,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
           >
             <div
               className={classNames(
-                'relative flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 shadow-2xl',
+                'mkayvibe-control-panel relative flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 shadow-2xl',
                 'border-0 rounded-none sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-2xl sm:border',
                 'transform transition-all duration-200 ease-out',
                 open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4',
