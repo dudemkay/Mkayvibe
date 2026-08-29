@@ -42,6 +42,12 @@ const changedStatus = {
   syncState: 'unknown' as const,
 };
 
+const cleanStatus = {
+  ...changedStatus,
+  changes: [],
+  syncState: 'synced' as const,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -62,15 +68,7 @@ describe('MobileGitWorkspaceView primary sync flow', () => {
         syncState: 'ahead',
       },
     });
-    mocks.push.mockResolvedValue({
-      isRepository: true,
-      branch: 'main',
-      remoteUrl: 'https://github.com/dudemkay/Mkayvibe.git',
-      changes: [],
-      ahead: 0,
-      behind: 0,
-      syncState: 'synced',
-    });
+    mocks.push.mockResolvedValue(cleanStatus);
 
     render(<MobileGitWorkspaceView />);
     expect(await screen.findByText('1 change')).toBeInTheDocument();
@@ -87,32 +85,28 @@ describe('MobileGitWorkspaceView primary sync flow', () => {
     });
   });
 
-  it('pulls instead of pushing when GitHub is ahead and the working tree is clean', async () => {
-    const cleanUnknown = { ...changedStatus, changes: [] };
-    const behind = { ...cleanUnknown, behind: 1, syncState: 'behind' as const };
-    mocks.getStatus.mockResolvedValue(cleanUnknown);
+  it('checks GitHub even when the last known state is clean, then pulls when remote is ahead', async () => {
+    const behind = { ...cleanStatus, behind: 1, syncState: 'behind' as const };
+    mocks.getStatus.mockResolvedValue(cleanStatus);
     mocks.fetchRemote.mockResolvedValue(behind);
-    mocks.pull.mockResolvedValue({ ...behind, behind: 0, syncState: 'synced' as const });
+    mocks.pull.mockResolvedValue(cleanStatus);
 
     render(<MobileGitWorkspaceView />);
     await screen.findByText('0 changes');
-    fireEvent.click(screen.getByRole('button', { name: 'Sync to GitHub' }));
+    expect(screen.getByText('Up to date')).toBeInTheDocument();
 
-    await waitFor(() => expect(mocks.pull).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Check GitHub' }));
+
+    await waitFor(() => {
+      expect(mocks.fetchRemote).toHaveBeenCalledTimes(1);
+      expect(mocks.pull).toHaveBeenCalledTimes(1);
+    });
     expect(mocks.push).not.toHaveBeenCalled();
     expect(mocks.commitAll).not.toHaveBeenCalled();
   });
 
   it('keeps detailed Git operations behind Advanced Git', async () => {
-    mocks.getStatus.mockResolvedValue({
-      isRepository: true,
-      branch: 'main',
-      remoteUrl: 'https://github.com/dudemkay/Mkayvibe.git',
-      changes: [],
-      ahead: 0,
-      behind: 0,
-      syncState: 'synced',
-    });
+    mocks.getStatus.mockResolvedValue(cleanStatus);
 
     render(<MobileGitWorkspaceView />);
     await screen.findByText('Up to date');
