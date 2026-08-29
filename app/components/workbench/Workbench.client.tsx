@@ -181,9 +181,7 @@ const FileModifiedDropdown = memo(
                                       <span className="truncate text-sm font-medium text-bolt-elements-textPrimary">
                                         {filePath.split('/').pop()}
                                       </span>
-                                      <span className="truncate text-xs text-bolt-elements-textTertiary">
-                                        {filePath}
-                                      </span>
+                                      <span className="truncate text-xs text-bolt-elements-textTertiary">{filePath}</span>
                                     </div>
                                     {(() => {
                                       const { additions, deletions } = (() => {
@@ -193,10 +191,7 @@ const FileModifiedDropdown = memo(
 
                                         const normalizedOriginal = history.originalContent.replace(/\r\n/g, '\n');
                                         const normalizedCurrent =
-                                          history.versions[history.versions.length - 1]?.content.replace(
-                                            /\r\n/g,
-                                            '\n',
-                                          ) || '';
+                                          history.versions[history.versions.length - 1]?.content.replace(/\r\n/g, '\n') || '';
 
                                         if (normalizedOriginal === normalizedCurrent) {
                                           return { additions: 0, deletions: 0 };
@@ -442,8 +437,10 @@ export const Workbench = memo(
       }
     };
 
+    const showMobileGitBeforeProject = isSmallViewport && mobileView === 'git';
+
     return (
-      chatStarted && (
+      (chatStarted || showMobileGitBeforeProject) && (
         <motion.div
           initial="closed"
           animate={isSmallViewport ? 'open' : showWorkbench ? 'open' : 'closed'}
@@ -457,7 +454,7 @@ export const Workbench = memo(
             className={classNames(
               'fixed z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
               isSmallViewport
-                ? 'left-0 right-0 top-[calc(var(--header-height)+0.5rem)] bottom-[calc(3.75rem+env(safe-area-inset-bottom))] w-full'
+                ? 'left-0 right-0 top-[var(--header-height)] bottom-[calc(4rem+env(safe-area-inset-bottom))] w-full'
                 : 'top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)]',
               {
                 'left-[var(--workbench-left)]': !isSmallViewport && showWorkbench,
@@ -465,17 +462,22 @@ export const Workbench = memo(
               },
             )}
           >
-            <div className={classNames('absolute inset-0', isSmallViewport ? 'px-1' : 'px-2 lg:px-4')}>
-              <div className="h-full min-h-0 min-w-0 flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
+            <div className={classNames('absolute inset-0', isSmallViewport ? 'px-0' : 'px-2 lg:px-4')}>
+              <div
+                className={classNames(
+                  'h-full min-h-0 min-w-0 flex flex-col bg-bolt-elements-background-depth-2 overflow-hidden',
+                  isSmallViewport ? 'border-0 rounded-none shadow-none' : 'border border-bolt-elements-borderColor shadow-sm rounded-lg',
+                )}
+              >
                 {isSmallViewport ? (
-                  <div className="flex min-h-11 items-center gap-1.5 border-b border-bolt-elements-borderColor px-2 py-1.5">
-                    <div className="min-w-0 flex-1 truncate text-sm font-medium text-bolt-elements-textSecondary">
+                  <div className="flex min-h-12 shrink-0 items-center gap-1.5 border-b border-bolt-elements-borderColor px-3 py-1.5">
+                    <div className="min-w-0 flex-1 truncate text-sm font-semibold text-bolt-elements-textPrimary">
                       {mobileView === 'files'
                         ? 'Files'
                         : mobileView === 'preview'
                           ? 'Preview'
                           : mobileView === 'git'
-                            ? 'Git'
+                            ? 'GitHub'
                             : selectedView === 'diff'
                               ? 'Diff'
                               : 'Code'}
@@ -486,7 +488,7 @@ export const Workbench = memo(
                           type="button"
                           aria-label={selectedView === 'diff' ? 'Return to code' : 'Open diff'}
                           onClick={() => setSelectedView(selectedView === 'diff' ? 'code' : 'diff')}
-                          className="min-h-10 min-w-10 rounded-md bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
+                          className="min-h-11 min-w-11 rounded-lg bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
                         >
                           <span className={selectedView === 'diff' ? 'i-ph:code' : 'i-ph:git-diff'} aria-hidden="true" />
                         </button>
@@ -494,7 +496,7 @@ export const Workbench = memo(
                           type="button"
                           aria-label="Toggle terminal"
                           onClick={() => workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get())}
-                          className="min-h-10 min-w-10 rounded-md bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
+                          className="min-h-11 min-w-11 rounded-lg bg-transparent text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3"
                         >
                           <span className="i-ph:terminal" aria-hidden="true" />
                         </button>
@@ -546,11 +548,7 @@ export const Workbench = memo(
                                 disabled={isSyncing}
                               >
                                 <div className="flex items-center gap-2">
-                                  {isSyncing ? (
-                                    <div className="i-ph:spinner" />
-                                  ) : (
-                                    <div className="i-ph:cloud-arrow-down" />
-                                  )}
+                                  {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
                                   <span>{isSyncing ? 'Syncing...' : 'Sync Files'}</span>
                                 </div>
                               </DropdownMenu.Item>
@@ -571,9 +569,7 @@ export const Workbench = memo(
                       </div>
                     )}
 
-                    {selectedView === 'diff' && (
-                      <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
-                    )}
+                    {selectedView === 'diff' && <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />}
                     <IconButton
                       icon="i-ph:x-circle"
                       className="-mr-1"
@@ -586,7 +582,7 @@ export const Workbench = memo(
                 )}
                 <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
                   {isSmallViewport ? (
-                    <div className="absolute inset-0 min-h-0 min-w-0">{renderMobileSurface()}</div>
+                    <div className="absolute inset-0 min-h-0 min-w-0 overflow-hidden">{renderMobileSurface()}</div>
                   ) : (
                     <>
                       <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : '-100%' }}>

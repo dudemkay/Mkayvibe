@@ -8,6 +8,8 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { Workbench } from '~/components/workbench/Workbench.client';
 import { MobileWorkspaceNav } from '~/components/mobile/MobileWorkspaceNav';
+import { NativeMobileChatBox } from '~/components/mobile/NativeMobileChatBox';
+import { NativeMobileWorkspace } from '~/components/mobile/NativeMobileWorkspace';
 import type { MobileWorkspaceView } from '~/components/mobile/types';
 import { classNames } from '~/utils/classNames';
 import { PROVIDER_LIST } from '~/utils/constants';
@@ -37,6 +39,7 @@ import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
 
 const TEXTAREA_MIN_HEIGHT = 76;
+const MOBILE_VIEW_KEY = 'mkayvibe-mobile-view';
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -86,6 +89,9 @@ interface BaseChatProps {
   onWebSearchResult?: (result: string) => void;
 }
 
+const isMobileView = (value: string | null): value is MobileWorkspaceView =>
+  value === 'chat' || value === 'files' || value === 'code' || value === 'preview' || value === 'git';
+
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
   (
     {
@@ -102,8 +108,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       input = '',
       enhancingPrompt,
       handleInputChange,
-
-      // promptEnhanced,
       enhancePrompt,
       sendMessage,
       handleStop,
@@ -149,7 +153,54 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const expoUrl = useStore(expoUrlAtom);
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const isSmallViewport = useViewport(1024);
-    const [mobileView, setMobileView] = useState<MobileWorkspaceView>('chat');
+    const [mobileView, setMobileView] = useState<MobileWorkspaceView>(() => {
+      if (typeof window === 'undefined') {
+        return 'chat';
+      }
+
+      const storedView = window.sessionStorage.getItem(MOBILE_VIEW_KEY);
+      return isMobileView(storedView) ? storedView : 'chat';
+    });
+
+    useEffect(() => {
+      if (isSmallViewport) {
+        setIsModelSettingsCollapsed(true);
+      }
+    }, [isSmallViewport]);
+
+    useEffect(() => {
+      if (!isSmallViewport || typeof window === 'undefined') {
+        return;
+      }
+
+      window.sessionStorage.setItem(MOBILE_VIEW_KEY, mobileView);
+    }, [isSmallViewport, mobileView]);
+
+    useEffect(() => {
+      if (!isSmallViewport || typeof window === 'undefined') {
+        return;
+      }
+
+      const viewport = window.visualViewport;
+      const target = document.documentElement;
+
+      const syncViewportHeight = () => {
+        const height = viewport?.height ?? window.innerHeight;
+        target.style.setProperty('--mk-mobile-viewport-height', `${Math.round(height)}px`);
+      };
+
+      syncViewportHeight();
+      viewport?.addEventListener('resize', syncViewportHeight);
+      viewport?.addEventListener('scroll', syncViewportHeight);
+      window.addEventListener('orientationchange', syncViewportHeight);
+
+      return () => {
+        viewport?.removeEventListener('resize', syncViewportHeight);
+        viewport?.removeEventListener('scroll', syncViewportHeight);
+        window.removeEventListener('orientationchange', syncViewportHeight);
+        target.style.removeProperty('--mk-mobile-viewport-height');
+      };
+    }, [isSmallViewport]);
 
     useEffect(() => {
       if (expoUrl) {
@@ -165,9 +216,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setProgressAnnotations(progressList);
       }
     }, [data]);
-    useEffect(() => {
-      console.log(transcript);
-    }, [transcript]);
 
     useEffect(() => {
       onStreamingChange?.(isStreaming);
@@ -250,7 +298,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         console.error('Error loading dynamic models for:', providerName, error);
       }
 
-      // Only update models for the specific provider
       setModelList((prevModels) => {
         const otherModels = prevModels.filter((model) => model.provider !== providerName);
         return [...otherModels, ...providerModels];
@@ -278,11 +325,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setSelectedElement?.(null);
 
         if (recognition) {
-          recognition.abort(); // Stop current recognition
-          setTranscript(''); // Clear transcript
+          recognition.abort();
+          setTranscript('');
           setIsListening(false);
 
-          // Clear the input by triggering handleInputChange with empty value
           if (handleInputChange) {
             const syntheticEvent = {
               target: { value: '' },
@@ -326,14 +372,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
-
           const file = item.getAsFile();
 
           if (file) {
             const reader = new FileReader();
-
-            reader.onload = (e) => {
-              const base64Image = e.target?.result as string;
+            reader.onload = (event) => {
+              const base64Image = event.target?.result as string;
               setUploadedFiles?.([...uploadedFiles, file]);
               setImageDataList?.([...imageDataList, base64Image]);
             };
@@ -345,6 +389,174 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    const renderAlerts = () => (
+      <div className="flex flex-col gap-2">
+        {deployAlert && (
+          <DeployChatAlert
+            alert={deployAlert}
+            clearAlert={() => clearDeployAlert?.()}
+            postMessage={(message: string | undefined) => {
+              sendMessage?.({} as any, message);
+              clearSupabaseAlert?.();
+            }}
+          />
+        )}
+        {supabaseAlert && (
+          <SupabaseChatAlert
+            alert={supabaseAlert}
+            clearAlert={() => clearSupabaseAlert?.()}
+            postMessage={(message) => {
+              sendMessage?.({} as any, message);
+              clearSupabaseAlert?.();
+            }}
+          />
+        )}
+        {actionAlert && (
+          <ChatAlert
+            alert={actionAlert}
+            clearAlert={() => clearAlert?.()}
+            postMessage={(message) => {
+              sendMessage?.({} as any, message);
+              clearAlert?.();
+            }}
+          />
+        )}
+        {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
+      </div>
+    );
+
+    const sharedChatBoxProps = {
+      isModelSettingsCollapsed,
+      setIsModelSettingsCollapsed,
+      provider,
+      setProvider,
+      providerList: providerList || (PROVIDER_LIST as ProviderInfo[]),
+      model,
+      setModel,
+      modelList,
+      apiKeys,
+      isModelLoading,
+      onApiKeysChange,
+      uploadedFiles,
+      setUploadedFiles,
+      imageDataList,
+      setImageDataList,
+      textareaRef,
+      input,
+      handleInputChange,
+      handlePaste,
+      TEXTAREA_MIN_HEIGHT,
+      TEXTAREA_MAX_HEIGHT,
+      isStreaming,
+      handleStop,
+      handleSendMessage,
+      enhancingPrompt,
+      enhancePrompt,
+      isListening,
+      startListening,
+      stopListening,
+      chatStarted,
+      exportChat,
+      qrModalOpen,
+      setQrModalOpen,
+      handleFileUpload,
+      chatMode,
+      setChatMode,
+      designScheme,
+      setDesignScheme,
+      selectedElement,
+      setSelectedElement,
+      onWebSearchResult,
+    };
+
+    if (isSmallViewport) {
+      const chatSurface = (
+        <section
+          data-testid="native-mobile-chat-surface"
+          className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-bolt-elements-background-depth-1"
+        >
+          <StickToBottom
+            className="relative h-full min-h-0 min-w-0 overflow-y-hidden"
+            resize="smooth"
+            initial="smooth"
+            role="log"
+          >
+            <StickToBottom.Content className="flex min-h-full min-w-0 flex-col gap-4 p-3 pb-4">
+              {!chatStarted ? (
+                <div className="flex min-h-full flex-1 flex-col items-center justify-center px-5 py-8 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-xl text-bolt-elements-textSecondary">
+                    <span className="i-ph:sparkle-fill" aria-hidden="true" />
+                  </div>
+                  <h1 className="mt-4 max-w-xs text-[1.65rem] font-semibold leading-tight tracking-[-0.035em] text-bolt-elements-textPrimary">
+                    What do you want to build?
+                  </h1>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-bolt-elements-textSecondary">
+                    Describe an idea or open Git to continue working on a repository.
+                  </p>
+                </div>
+              ) : (
+                <ClientOnly>
+                  {() => (
+                    <Messages
+                      className="flex w-full min-w-0 flex-1 flex-col pb-2"
+                      messages={messages}
+                      isStreaming={isStreaming}
+                      append={append}
+                      chatMode={chatMode}
+                      setChatMode={setChatMode}
+                      provider={provider}
+                      model={model}
+                      addToolResult={addToolResult}
+                    />
+                  )}
+                </ClientOnly>
+              )}
+            </StickToBottom.Content>
+          </StickToBottom>
+
+          <div className="shrink-0 border-t border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-2 pb-2">
+            {renderAlerts()}
+            {progressAnnotations && progressAnnotations.length > 0 && <ProgressCompilation data={progressAnnotations} />}
+            <NativeMobileChatBox {...sharedChatBoxProps} />
+          </div>
+        </section>
+      );
+
+      return (
+        <Tooltip.Provider delayDuration={200}>
+          <div
+            ref={ref}
+            data-testid="native-mobile-shell"
+            className="relative grid w-full min-w-0 overflow-hidden bg-bolt-elements-background-depth-1"
+            style={{
+              height: 'calc(var(--mk-mobile-viewport-height, 100dvh) - var(--header-height, 0px))',
+              gridTemplateRows: 'minmax(0, 1fr) auto',
+            }}
+          >
+            <ClientOnly>{() => <Menu />}</ClientOnly>
+            <main className="relative min-h-0 min-w-0 overflow-hidden">
+              {mobileView === 'chat' ? (
+                chatSurface
+              ) : (
+                <ClientOnly>
+                  {() => (
+                    <NativeMobileWorkspace
+                      view={mobileView}
+                      onViewChange={setMobileView}
+                      chatStarted={chatStarted}
+                      isStreaming={isStreaming}
+                      setSelectedElement={setSelectedElement}
+                    />
+                  )}
+                </ClientOnly>
+              )}
+            </main>
+            <MobileWorkspaceNav activeView={mobileView} onChange={setMobileView} workspaceReady={chatStarted} />
+          </div>
+        </Tooltip.Provider>
+      );
+    }
+
     const baseChat = (
       <div
         ref={ref}
@@ -352,41 +564,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto overflow-x-hidden w-full h-full min-w-0">
-          <div
-            className={classNames(
-              styles.Chat,
-              styles.MobileChat,
-              'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full min-w-0',
-              {
-                hidden: isSmallViewport && mobileView !== 'chat',
-                [styles.MobileChatInset]: isSmallViewport,
-              },
-            )}
-          >
+        <div className="flex h-full w-full min-w-0 flex-col overflow-x-hidden overflow-y-auto lg:flex-row">
+          <div className={classNames(styles.Chat, 'flex h-full min-w-0 flex-grow flex-col lg:min-w-[var(--chat-min-width)]')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
+              <div id="intro" className="mx-auto mt-[16vh] max-w-2xl px-4 text-center lg:px-0">
+                <h1 className="mb-4 animate-fade-in text-3xl font-bold text-bolt-elements-textPrimary lg:text-6xl">
                   Where ideas begin
                 </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
+                <p className="mb-8 animate-fade-in text-md text-bolt-elements-textSecondary animation-delay-200 lg:text-xl">
                   Bring ideas to life in seconds or get help on existing projects.
                 </p>
               </div>
             )}
             <StickToBottom
-              className={classNames('pt-6 px-2 sm:px-6 relative min-w-0', {
+              className={classNames('relative min-w-0 px-2 pt-6 sm:px-6', {
                 'h-full flex flex-col modern-scrollbar': chatStarted,
               })}
               resize="smooth"
               initial="smooth"
             >
-              <StickToBottom.Content className="flex flex-col gap-4 relative min-w-0">
+              <StickToBottom.Content className="relative flex min-w-0 flex-col gap-4">
                 <ClientOnly>
-                  {() => {
-                    return chatStarted ? (
+                  {() =>
+                    chatStarted ? (
                       <Messages
-                        className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1 min-w-0"
+                        className="z-1 mx-auto flex w-full min-w-0 max-w-chat flex-1 flex-col pb-4"
                         messages={messages}
                         isStreaming={isStreaming}
                         append={append}
@@ -396,102 +598,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         model={model}
                         addToolResult={addToolResult}
                       />
-                    ) : null;
-                  }}
+                    ) : null
+                  }
                 </ClientOnly>
                 <ScrollToBottom />
               </StickToBottom.Content>
               <div
-                className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6 min-w-0', {
+                className={classNames('z-prompt mx-auto my-auto mb-6 flex w-full min-w-0 max-w-chat flex-col gap-2', {
                   sticky: chatStarted,
                 })}
-                style={
-                  chatStarted
-                    ? {
-                        bottom: isSmallViewport
-                          ? 'calc(3.75rem + env(safe-area-inset-bottom) + 0.5rem)'
-                          : '0.5rem',
-                      }
-                    : undefined
-                }
+                style={chatStarted ? { bottom: '0.5rem' } : undefined}
               >
-                <div className="flex flex-col gap-2">
-                  {deployAlert && (
-                    <DeployChatAlert
-                      alert={deployAlert}
-                      clearAlert={() => clearDeployAlert?.()}
-                      postMessage={(message: string | undefined) => {
-                        sendMessage?.({} as any, message);
-                        clearSupabaseAlert?.();
-                      }}
-                    />
-                  )}
-                  {supabaseAlert && (
-                    <SupabaseChatAlert
-                      alert={supabaseAlert}
-                      clearAlert={() => clearSupabaseAlert?.()}
-                      postMessage={(message) => {
-                        sendMessage?.({} as any, message);
-                        clearSupabaseAlert?.();
-                      }}
-                    />
-                  )}
-                  {actionAlert && (
-                    <ChatAlert
-                      alert={actionAlert}
-                      clearAlert={() => clearAlert?.()}
-                      postMessage={(message) => {
-                        sendMessage?.({} as any, message);
-                        clearAlert?.();
-                      }}
-                    />
-                  )}
-                  {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
-                </div>
+                {renderAlerts()}
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
-                <ChatBox
-                  isModelSettingsCollapsed={isModelSettingsCollapsed}
-                  setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
-                  provider={provider}
-                  setProvider={setProvider}
-                  providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
-                  model={model}
-                  setModel={setModel}
-                  modelList={modelList}
-                  apiKeys={apiKeys}
-                  isModelLoading={isModelLoading}
-                  onApiKeysChange={onApiKeysChange}
-                  uploadedFiles={uploadedFiles}
-                  setUploadedFiles={setUploadedFiles}
-                  imageDataList={imageDataList}
-                  setImageDataList={setImageDataList}
-                  textareaRef={textareaRef}
-                  input={input}
-                  handleInputChange={handleInputChange}
-                  handlePaste={handlePaste}
-                  TEXTAREA_MIN_HEIGHT={TEXTAREA_MIN_HEIGHT}
-                  TEXTAREA_MAX_HEIGHT={TEXTAREA_MAX_HEIGHT}
-                  isStreaming={isStreaming}
-                  handleStop={handleStop}
-                  handleSendMessage={handleSendMessage}
-                  enhancingPrompt={enhancingPrompt}
-                  enhancePrompt={enhancePrompt}
-                  isListening={isListening}
-                  startListening={startListening}
-                  stopListening={stopListening}
-                  chatStarted={chatStarted}
-                  exportChat={exportChat}
-                  qrModalOpen={qrModalOpen}
-                  setQrModalOpen={setQrModalOpen}
-                  handleFileUpload={handleFileUpload}
-                  chatMode={chatMode}
-                  setChatMode={setChatMode}
-                  designScheme={designScheme}
-                  setDesignScheme={setDesignScheme}
-                  selectedElement={selectedElement}
-                  setSelectedElement={setSelectedElement}
-                  onWebSearchResult={onWebSearchResult}
-                />
+                <ChatBox {...sharedChatBoxProps} />
               </div>
             </StickToBottom>
             <div className="flex flex-col justify-center">
@@ -521,15 +641,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 chatStarted={chatStarted}
                 isStreaming={isStreaming}
                 setSelectedElement={setSelectedElement}
-                mobileView={mobileView}
-                onMobileViewChange={setMobileView}
               />
             )}
           </ClientOnly>
         </div>
-        {isSmallViewport && (
-          <MobileWorkspaceNav activeView={mobileView} onChange={setMobileView} workspaceReady={chatStarted} />
-        )}
       </div>
     );
 
@@ -543,9 +658,9 @@ function ScrollToBottom() {
   return (
     !isAtBottom && (
       <>
-        <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-bolt-elements-background-depth-1 to-transparent h-20 z-10" />
+        <div className="sticky bottom-0 left-0 right-0 z-10 h-20 bg-gradient-to-t from-bolt-elements-background-depth-1 to-transparent" />
         <button
-          className="sticky z-50 bottom-0 left-0 right-0 text-4xl rounded-lg px-1.5 py-0.5 flex items-center justify-center mx-auto gap-2 bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor text-bolt-elements-textPrimary text-sm"
+          className="sticky bottom-0 left-0 right-0 z-50 mx-auto flex items-center justify-center gap-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-1.5 py-0.5 text-sm text-bolt-elements-textPrimary"
           onClick={() => scrollToBottom()}
         >
           Go to last message

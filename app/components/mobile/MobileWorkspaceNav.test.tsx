@@ -18,11 +18,9 @@ describe('MobileWorkspaceNav', () => {
   it('keeps every destination enabled before a workspace starts', () => {
     render(<MobileWorkspaceNav activeView="chat" onChange={() => undefined} workspaceReady={false} />);
 
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Files' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Code' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Git' })).toBeEnabled();
+    for (const label of ['Chat', 'Files', 'Code', 'Preview', 'Git']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
+    }
   });
 
   it('marks the active destination and emits view changes', () => {
@@ -36,17 +34,13 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('shows an empty section when a non-chat destination opens before a workspace exists', () => {
-    const onChange = vi.fn();
-    const { rerender } = render(
-      <MobileWorkspaceNav activeView="chat" onChange={onChange} workspaceReady={false} />,
-    );
+  it('is navigation only and never renders a full-screen content overlay', () => {
+    render(<MobileWorkspaceNav activeView="files" onChange={() => undefined} workspaceReady={false} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Files' }));
-    expect(onChange).toHaveBeenCalledWith('files');
-
-    rerender(<MobileWorkspaceNav activeView="files" onChange={onChange} workspaceReady={false} />);
-    expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
-    expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
+    expect(screen.getByTestId('native-mobile-nav')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Go to Chat' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Import from GitHub' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-current', 'page');
   });
 });

@@ -9,14 +9,14 @@ interface BranchInfo {
   sha: string;
   protected: boolean;
   isDefault: boolean;
-  canPush?: boolean; // GitLab specific
+  canPush?: boolean;
 }
 
 interface BranchSelectorProps {
   provider: 'github' | 'gitlab';
   repoOwner: string;
   repoName: string;
-  projectId?: string | number; // GitLab specific
+  projectId?: string | number;
   token: string;
   gitlabUrl?: string;
   defaultBranch?: string;
@@ -58,14 +58,9 @@ export function BranchSelector({
         response = await fetch('/api/github-branches', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            owner: repoOwner,
-            repo: repoName,
-            token,
-          }),
+          body: JSON.stringify({ owner: repoOwner, repo: repoName, token }),
         });
       } else {
-        // GitLab
         if (!projectId) {
           throw new Error('Project ID is required for GitLab repositories');
         }
@@ -73,11 +68,7 @@ export function BranchSelector({
         response = await fetch('/api/gitlab-branches', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            gitlabUrl: gitlabUrl || 'https://gitlab.com',
-            projectId,
-          }),
+          body: JSON.stringify({ token, gitlabUrl: gitlabUrl || 'https://gitlab.com', projectId }),
         });
       }
 
@@ -88,10 +79,7 @@ export function BranchSelector({
 
       const data: any = await response.json();
       setBranches(data.branches || []);
-
-      // Set default selected branch
-      const defaultBranchToSelect = data.defaultBranch || defaultBranch || 'main';
-      setSelectedBranch(defaultBranchToSelect);
+      setSelectedBranch(data.defaultBranch || defaultBranch || 'main');
     } catch (err) {
       console.error('Failed to fetch branches:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch branches');
@@ -101,22 +89,21 @@ export function BranchSelector({
     }
   };
 
-  const handleBranchSelect = (branchName: string) => {
-    setSelectedBranch(branchName);
-  };
-
   const handleConfirmSelection = () => {
+    if (!selectedBranch) {
+      return;
+    }
+
     onBranchSelect(selectedBranch);
     onClose();
   };
 
   useEffect(() => {
     if (isOpen && !branches.length) {
-      fetchBranches();
+      void fetchBranches();
     }
   }, [isOpen, repoOwner, repoName, projectId]);
 
-  // Reset search when closing
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('');
@@ -129,105 +116,99 @@ export function BranchSelector({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[400] flex items-end bg-black/50 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.2 }}
+          initial={{ opacity: 0, y: 40, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 40, scale: 0.98 }}
+          transition={{ duration: 0.18 }}
           className={classNames(
-            'bg-white dark:bg-gray-950 rounded-xl shadow-xl border border-bolt-elements-borderColor max-w-md w-full max-h-[80vh] flex flex-col',
+            'flex h-[min(88dvh,720px)] w-full min-w-0 flex-col overflow-hidden border-bolt-elements-borderColor bg-white shadow-2xl dark:bg-gray-950',
+            'rounded-t-2xl border-x border-t sm:h-auto sm:max-h-[80vh] sm:max-w-md sm:rounded-xl sm:border',
             className,
           )}
         >
-          {/* Header */}
-          <div className="p-6 border-b border-bolt-elements-borderColor flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <GitBranch className="w-6 h-6 text-blue-600" />
+          <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-bolt-elements-borderColor px-4 py-3 sm:p-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
+                <GitBranch className="h-5 w-5 text-blue-600" />
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-bolt-elements-textPrimary">Select Branch</h3>
-                <p className="text-sm text-bolt-elements-textSecondary">
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-bolt-elements-textPrimary sm:text-lg">Select Branch</h3>
+                <p className="truncate text-xs text-bolt-elements-textSecondary sm:text-sm">
                   {repoOwner}/{repoName}
                 </p>
               </div>
             </div>
             <button
+              type="button"
+              aria-label="Close branch selector"
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-bolt-elements-background-depth-1 text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-all"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-bolt-elements-textSecondary transition-colors hover:bg-bolt-elements-background-depth-1 hover:text-bolt-elements-textPrimary"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                <div className="animate-spin w-8 h-8 border-2 border-bolt-elements-borderColorActive border-t-transparent rounded-full" />
+              <div className="flex flex-1 flex-col items-center justify-center space-y-4 p-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-bolt-elements-borderColorActive border-t-transparent" />
                 <p className="text-sm text-bolt-elements-textSecondary">Loading branches...</p>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                <div className="text-red-500 mb-2">
-                  <GitBranch className="w-8 h-8 mx-auto" />
-                </div>
-                <p className="text-sm text-red-600 text-center">{error}</p>
-                <Button onClick={fetchBranches} variant="outline" size="sm">
-                  <RefreshCw className="w-4 h-4 mr-2" />
+              <div className="flex flex-1 flex-col items-center justify-center space-y-4 p-8">
+                <GitBranch className="h-8 w-8 text-red-500" />
+                <p className="text-center text-sm text-red-600">{error}</p>
+                <Button onClick={() => void fetchBranches()} variant="outline" size="sm" className="min-h-11">
+                  <RefreshCw className="mr-2 h-4 w-4" />
                   Retry
                 </Button>
               </div>
             ) : (
               <>
-                {/* Search */}
-                {branches.length > 10 && (
-                  <div className="p-4 border-b border-bolt-elements-borderColor">
-                    <input
-                      type="text"
-                      placeholder="Search branches..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary focus:outline-none focus:ring-1 focus:ring-bolt-elements-borderColorActive"
-                    />
-                  </div>
-                )}
+                <div className="shrink-0 border-b border-bolt-elements-borderColor p-3 sm:p-4">
+                  <input
+                    type="search"
+                    placeholder="Search branches..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="min-h-11 w-full rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-base text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary focus:outline-none focus:ring-1 focus:ring-bolt-elements-borderColorActive sm:text-sm"
+                  />
+                </div>
 
-                {/* Branch List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 sm:p-4">
                   {filteredBranches.length > 0 ? (
-                    <div className="p-4 space-y-1">
+                    <div className="space-y-1.5">
                       {filteredBranches.map((branch) => (
                         <button
+                          type="button"
                           key={branch.name}
-                          onClick={() => handleBranchSelect(branch.name)}
+                          onClick={() => setSelectedBranch(branch.name)}
                           className={classNames(
-                            'w-full text-left p-3 rounded-lg transition-all duration-200 border',
+                            'min-h-12 w-full rounded-xl border p-3 text-left transition-colors',
                             selectedBranch === branch.name
-                              ? 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-100'
-                              : 'bg-bolt-elements-background-depth-1 border-transparent hover:bg-bolt-elements-background-depth-2',
+                              ? 'border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100'
+                              : 'border-transparent bg-bolt-elements-background-depth-1 hover:bg-bolt-elements-background-depth-2',
                           )}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <GitBranch className="w-4 h-4 flex-shrink-0 text-bolt-elements-textSecondary" />
-                              <span className="font-medium text-bolt-elements-textPrimary truncate">{branch.name}</span>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {branch.isDefault && <Star className="w-3 h-3 text-yellow-500" />}
-                                {branch.protected && <Shield className="w-3 h-3 text-red-500" />}
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <GitBranch className="h-4 w-4 shrink-0 text-bolt-elements-textSecondary" />
+                              <span className="truncate font-medium text-bolt-elements-textPrimary">{branch.name}</span>
+                              <div className="flex shrink-0 items-center gap-1">
+                                {branch.isDefault && <Star className="h-3 w-3 text-yellow-500" />}
+                                {branch.protected && <Shield className="h-3 w-3 text-red-500" />}
                               </div>
                             </div>
-                            {selectedBranch === branch.name && <Check className="w-4 h-4 text-blue-600" />}
+                            {selectedBranch === branch.name && <Check className="h-5 w-5 shrink-0 text-blue-600" />}
                           </div>
-                          <div className="text-xs text-bolt-elements-textSecondary mt-1 truncate">
-                            {branch.sha.substring(0, 8)}
-                          </div>
+                          <div className="mt-1 truncate pl-6 text-xs text-bolt-elements-textSecondary">{branch.sha.substring(0, 8)}</div>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center p-8">
+                    <div className="flex h-full items-center justify-center p-8 text-center">
                       <p className="text-sm text-bolt-elements-textSecondary">
                         {searchQuery ? 'No branches found matching your search.' : 'No branches available.'}
                       </p>
@@ -238,25 +219,19 @@ export function BranchSelector({
             )}
           </div>
 
-          {/* Footer */}
           {!isLoading && !error && branches.length > 0 && (
-            <div className="p-6 border-t border-bolt-elements-borderColor flex items-center justify-between">
-              <div className="text-sm text-bolt-elements-textSecondary">
-                {selectedBranch && (
-                  <>
-                    Selected: <span className="font-medium">{selectedBranch}</span>
-                  </>
-                )}
+            <div className="shrink-0 border-t border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-3 sm:p-4">
+              <div className="mb-2 min-w-0 truncate text-xs text-bolt-elements-textSecondary">
+                Selected: <span className="font-medium text-bolt-elements-textPrimary">{selectedBranch}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <Button onClick={onClose} variant="outline" size="sm">
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={onClose} variant="outline" className="min-h-11 w-full">
                   Cancel
                 </Button>
                 <Button
                   onClick={handleConfirmSelection}
                   disabled={!selectedBranch}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="min-h-11 w-full bg-blue-600 text-white hover:bg-blue-700"
                 >
                   Clone Branch
                 </Button>
