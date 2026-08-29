@@ -20,20 +20,21 @@ describe('GoogleVertexProvider', () => {
     );
   });
 
-  it('ships current Vertex OpenAI-compatible Gemini defaults', () => {
+  it('ships current Vertex Chat Completions Gemini defaults', () => {
     const provider = new GoogleVertexProvider();
     const models = provider.staticModels.map((model) => model.name);
 
-    expect(models).toContain('google/gemini-3.5-flash');
-    expect(models).toContain('google/gemini-3.6-flash');
-    expect(models).toContain('google/gemini-3.1-pro-preview');
+    expect(models[0]).toBe('gemini-3.7-flash');
+    expect(models).toContain('gemini-3.6-flash');
+    expect(models).toContain('gemini-3.5-flash');
+    expect(models).toContain('gemini-3.1-pro-preview');
   });
 
   it('uses configured Vertex model ids', async () => {
     const provider = new GoogleVertexProvider();
-    const models = await provider.getDynamicModels(undefined, { models: 'google/model-a; google/model-b' }, {});
+    const models = await provider.getDynamicModels(undefined, { models: 'gemini-model-a; gemini-model-b' }, {});
 
-    expect(models.map((model) => model.name)).toEqual(['google/model-a', 'google/model-b']);
+    expect(models.map((model) => model.name)).toEqual(['gemini-model-a', 'gemini-model-b']);
     expect(models.every((model) => model.provider === 'GoogleVertex')).toBe(true);
   });
 });
