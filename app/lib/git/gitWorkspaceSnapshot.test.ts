@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { restoreGitWorkspaceSnapshot } from './gitWorkspaceSnapshot';
+import { createGitWorkspaceFileMap, restoreGitWorkspaceSnapshot } from './gitWorkspaceSnapshot';
 import type { Snapshot } from '~/lib/persistence/types';
 
 describe('restoreGitWorkspaceSnapshot', () => {
@@ -24,5 +24,25 @@ describe('restoreGitWorkspaceSnapshot', () => {
     expect(mkdir).toHaveBeenCalledWith('src', { recursive: true });
     expect(writeFile).toHaveBeenCalledWith('src/app.ts', 'export const app = true;', { encoding: 'utf8' });
     expect(writeFile).not.toHaveBeenCalledWith('.git/config', expect.anything(), expect.anything());
+  });
+
+  it('builds a deterministic workbench file map from the clone and restored snapshot', () => {
+    const files = createGitWorkspaceFileMap(
+      '/home/project',
+      {
+        'src/app.ts': { data: 'from GitHub', encoding: 'utf8' },
+        '.git/config': { data: 'private Git metadata', encoding: 'utf8' },
+      },
+      {
+        chatIndex: '',
+        files: {
+          '/home/project/src/app.ts': { type: 'file', content: 'saved edit', isBinary: false },
+        },
+      },
+    );
+
+    expect(files['/home/project/src']).toEqual({ type: 'folder' });
+    expect(files['/home/project/src/app.ts']).toEqual({ type: 'file', content: 'saved edit', isBinary: false });
+    expect(files['/home/project/.git/config']).toBeUndefined();
   });
 });

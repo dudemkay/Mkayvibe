@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { LoadingOverlay } from '~/components/ui/LoadingOverlay';
-import { db, getMessages, type ChatHistoryItem } from '~/lib/persistence';
+import { db, getMessages, getSnapshot, type ChatHistoryItem } from '~/lib/persistence';
+import type { Snapshot } from '~/lib/persistence/types';
 import { GitWorkspaceBootstrap } from './GitWorkspaceBootstrap.client';
 
 interface GitChatRouteBootstrapProps {
@@ -9,26 +10,29 @@ interface GitChatRouteBootstrapProps {
 }
 
 export function GitChatRouteBootstrap({ routeId, children }: GitChatRouteBootstrapProps) {
-  const [chat, setChat] = useState<ChatHistoryItem | null | undefined>(undefined);
+  const [workspace, setWorkspace] = useState<
+    { chat: ChatHistoryItem | null; snapshot?: Snapshot } | undefined
+  >(undefined);
 
   useEffect(() => {
     let cancelled = false;
+    setWorkspace(undefined);
 
     if (!db) {
-      setChat(null);
+      setWorkspace({ chat: null });
       return;
     }
 
-    getMessages(db, routeId)
-      .then((storedChat) => {
+    Promise.all([getMessages(db, routeId), getSnapshot(db, routeId)])
+      .then(([storedChat, snapshot]) => {
         if (!cancelled) {
-          setChat(storedChat || null);
+          setWorkspace({ chat: storedChat || null, snapshot });
         }
       })
       .catch((error) => {
         console.error('Failed to inspect chat workspace metadata:', error);
         if (!cancelled) {
-          setChat(null);
+          setWorkspace({ chat: null });
         }
       });
 
@@ -37,16 +41,20 @@ export function GitChatRouteBootstrap({ routeId, children }: GitChatRouteBootstr
     };
   }, [routeId]);
 
-  if (chat === undefined) {
+  if (workspace === undefined) {
     return <LoadingOverlay message="Opening workspace…" />;
   }
 
-  if (!chat?.metadata?.gitUrl) {
+  if (!workspace.chat?.metadata?.gitUrl) {
     return <>{children}</>;
   }
 
   return (
-    <GitWorkspaceBootstrap metadata={chat.metadata} chatId={chat.id}>
+    <GitWorkspaceBootstrap
+      metadata={workspace.chat.metadata}
+      chatId={workspace.chat.id}
+      snapshot={workspace.snapshot}
+    >
       {children}
     </GitWorkspaceBootstrap>
   );

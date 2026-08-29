@@ -62,6 +62,14 @@ export function MobileGitWorkspaceView() {
       let nextStatus = await fetchRemote();
       setStatus(nextStatus);
 
+      if (nextStatus.syncState === 'diverged') {
+        throw new Error('This branch has diverged from GitHub. Open Advanced Git to review it safely.');
+      }
+
+      if (nextStatus.syncState === 'behind' && nextStatus.changes.length > 0) {
+        throw new Error('GitHub has newer commits. Open Advanced Git to review them before committing local changes.');
+      }
+
       if (nextStatus.changes.length > 0) {
         const result = await commitAll(commitMessage.trim() || 'Update from Mkayvibe', author);
         nextStatus = result.status;
@@ -73,10 +81,6 @@ export function MobileGitWorkspaceView() {
         setStatus(nextStatus);
         toast.success('Pulled latest GitHub changes');
         return;
-      }
-
-      if (nextStatus.syncState === 'diverged') {
-        throw new Error('This branch has diverged from GitHub. Open Advanced Git to review it safely.');
       }
 
       if (nextStatus.syncState === 'ahead') {

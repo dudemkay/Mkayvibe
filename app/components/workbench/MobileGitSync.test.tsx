@@ -105,6 +105,22 @@ describe('MobileGitWorkspaceView primary sync flow', () => {
     expect(mocks.commitAll).not.toHaveBeenCalled();
   });
 
+  it('does not create a local commit when GitHub is ahead and local files changed', async () => {
+    const behindWithChanges = { ...changedStatus, behind: 1, syncState: 'behind' as const };
+    mocks.getStatus.mockResolvedValue(changedStatus);
+    mocks.fetchRemote.mockResolvedValue(behindWithChanges);
+
+    render(<MobileGitWorkspaceView />);
+    await screen.findByText('1 change');
+    fireEvent.click(screen.getByRole('button', { name: 'Sync to GitHub' }));
+
+    await waitFor(() => expect(mocks.fetchRemote).toHaveBeenCalledTimes(1));
+    expect(mocks.commitAll).not.toHaveBeenCalled();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.pull).not.toHaveBeenCalled();
+    expect(await screen.findByText(/GitHub has newer commits/)).toBeInTheDocument();
+  });
+
   it('keeps detailed Git operations behind Advanced Git', async () => {
     mocks.getStatus.mockResolvedValue(cleanStatus);
 

@@ -2,14 +2,16 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { LoadingOverlay } from '~/components/ui/LoadingOverlay';
 import { useGit } from '~/lib/hooks/useGit';
 import { useGitWorkspace } from '~/lib/hooks/useGitWorkspace';
-import { restoreGitWorkspaceSnapshot } from '~/lib/git/gitWorkspaceSnapshot';
-import { db, getSnapshot, setSnapshot, type IChatMetadata } from '~/lib/persistence';
+import { createGitWorkspaceFileMap, restoreGitWorkspaceSnapshot } from '~/lib/git/gitWorkspaceSnapshot';
+import { db, setSnapshot, type IChatMetadata } from '~/lib/persistence';
+import type { Snapshot } from '~/lib/persistence/types';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { webcontainer } from '~/lib/webcontainer';
 
 interface GitWorkspaceBootstrapProps {
   metadata?: IChatMetadata;
   chatId?: string;
+  snapshot?: Snapshot;
   children: ReactNode;
 }
 
@@ -28,7 +30,7 @@ async function clearWorkspace() {
   }
 }
 
-export function GitWorkspaceBootstrap({ metadata, chatId, children }: GitWorkspaceBootstrapProps) {
+export function GitWorkspaceBootstrap({ metadata, chatId, snapshot, children }: GitWorkspaceBootstrapProps) {
   const { ready: gitReady, error: gitError, gitClone } = useGit();
   const { ready: workspaceReady, getStatus } = useGitWorkspace();
   const [state, setState] = useState<BootstrapState>(metadata?.gitUrl ? 'waiting' : 'ready');
@@ -68,18 +70,20 @@ export function GitWorkspaceBootstrap({ metadata, chatId, children }: GitWorkspa
         const sameRepository = currentStatus.isRepository && normalizeRemote(currentStatus.remoteUrl) === expectedRemote;
         const sameBranch = !metadata.gitBranch || currentStatus.branch === metadata.gitBranch;
 
+        let cloneData: Record<string, { data: unknown; encoding?: string }> | undefined;
+
         if (!sameRepository || !sameBranch) {
           setState('cloning');
           setStage('Loading repository from GitHub…');
           await clearWorkspace();
           const cloneTarget = metadata.gitBranch ? `${metadata.gitUrl}#${metadata.gitBranch}` : metadata.gitUrl;
-          await gitClone(cloneTarget);
+          const cloneResult = await gitClone(cloneTarget);
+          cloneData = cloneResult.data;
         }
 
-        if (db && chatId) {
+        if (snapshot) {
           setState('restoring');
           setStage('Restoring your workspace…');
-          const snapshot = await getSnapshot(db, chatId);
           const container = await webcontainer;
           await restoreGitWorkspaceSnapshot(container, snapshot);
         }
@@ -91,6 +95,15 @@ export function GitWorkspaceBootstrap({ metadata, chatId, children }: GitWorkspa
         }
 
         if (!cancelled) {
+          const container = await webcontainer;
+          const files = createGitWorkspaceFileMap(
+            container.workdir,
+            cloneData,
+            snapshot,
+            cloneData ? {} : workbenchStore.files.get(),
+          );
+          workbenchStore.files.set(files);
+          workbenchStore.setDocuments(files);
           setState('ready');
           setStage('Workspace ready');
         }
@@ -109,7 +122,7 @@ export function GitWorkspaceBootstrap({ metadata, chatId, children }: GitWorkspa
     return () => {
       cancelled = true;
     };
-  }, [chatId, getStatus, gitClone, gitError, gitReady, metadata?.gitBranch, metadata?.gitUrl, retryKey, workspaceReady]);
+  }, [getStatus, gitClone, gitError, gitReady, metadata?.gitBranch, metadata?.gitUrl, retryKey, snapshot, workspaceReady]);
 
   useEffect(() => {
     if (!metadata?.gitUrl || state !== 'ready' || !db || !chatId) {

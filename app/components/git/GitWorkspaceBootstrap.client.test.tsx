@@ -7,8 +7,10 @@ import { GitWorkspaceBootstrap } from './GitWorkspaceBootstrap.client';
 const mocks = vi.hoisted(() => ({
   gitClone: vi.fn(),
   getStatus: vi.fn(),
-  getSnapshot: vi.fn(),
   setSnapshot: vi.fn(),
+  filesGet: vi.fn(() => ({})),
+  filesSet: vi.fn(),
+  setDocuments: vi.fn(),
   readdir: vi.fn(),
   rm: vi.fn(),
   mkdir: vi.fn(),
@@ -24,7 +26,6 @@ vi.mock('~/lib/hooks/useGitWorkspace', () => ({
 }));
 vi.mock('~/lib/persistence', () => ({
   db: {},
-  getSnapshot: mocks.getSnapshot,
   setSnapshot: mocks.setSnapshot,
 }));
 vi.mock('~/lib/webcontainer', () => ({
@@ -39,7 +40,10 @@ vi.mock('~/lib/webcontainer', () => ({
   }),
 }));
 vi.mock('~/lib/stores/workbench', () => ({
-  workbenchStore: { files: { subscribe: mocks.subscribe } },
+  workbenchStore: {
+    files: { subscribe: mocks.subscribe, get: mocks.filesGet, set: mocks.filesSet },
+    setDocuments: mocks.setDocuments,
+  },
 }));
 
 describe('GitWorkspaceBootstrap', () => {
@@ -52,18 +56,22 @@ describe('GitWorkspaceBootstrap', () => {
         remoteUrl: 'https://github.com/dudemkay/Mkayvibe.git',
       });
     mocks.readdir.mockResolvedValue([]);
-    mocks.gitClone.mockResolvedValue({ workdir: '/home/project', data: {} });
-    mocks.getSnapshot.mockResolvedValue({
+    mocks.gitClone.mockResolvedValue({
+      workdir: '/home/project',
+      data: { 'src/app.ts': { data: 'original', encoding: 'utf8' } },
+    });
+    const snapshot = {
       chatIndex: '',
       files: {
         '/home/project/src/app.ts': { type: 'file', content: 'saved edit', isBinary: false },
       },
-    });
+    } as const;
 
     render(
       <GitWorkspaceBootstrap
         metadata={{ gitUrl: 'https://github.com/dudemkay/Mkayvibe.git', gitBranch: 'main' }}
         chatId="12"
+        snapshot={snapshot}
       >
         <div>Workspace ready</div>
       </GitWorkspaceBootstrap>,
@@ -73,6 +81,12 @@ describe('GitWorkspaceBootstrap', () => {
 
     await waitFor(() => expect(mocks.gitClone).toHaveBeenCalledWith('https://github.com/dudemkay/Mkayvibe.git#main'));
     await waitFor(() => expect(mocks.writeFile).toHaveBeenCalledWith('src/app.ts', 'saved edit', { encoding: 'utf8' }));
+    expect(mocks.filesSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        '/home/project/src/app.ts': { type: 'file', content: 'saved edit', isBinary: false },
+      }),
+    );
+    expect(mocks.setDocuments).toHaveBeenCalled();
     expect(await screen.findByText('Workspace ready')).toBeInTheDocument();
   });
 
