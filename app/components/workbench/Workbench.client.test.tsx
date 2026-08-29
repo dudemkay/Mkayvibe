@@ -1,10 +1,19 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let smallViewport = true;
+const testState = vi.hoisted(() => ({
+  smallViewport: true,
+}));
 
 vi.mock('~/lib/hooks', () => ({
-  default: () => smallViewport,
+  default: () => testState.smallViewport,
+}));
+
+vi.mock('nanostores', () => ({
+  computed: (store: { get: () => unknown }, project: (value: unknown) => unknown) => ({
+    get: () => project(store.get()),
+    subscribe: () => () => undefined,
+  }),
 }));
 
 vi.mock('./EditorPanel', () => ({
@@ -25,34 +34,40 @@ vi.mock('~/lib/stores/chat', () => ({
   },
 }));
 
-const atom = <T,>(value: T) => ({ get: () => value, set: vi.fn(), subscribe: () => () => undefined });
+vi.mock('~/lib/stores/workbench', () => {
+  const atom = <T,>(value: T) => ({
+    get: () => value,
+    set: vi.fn(),
+    subscribe: () => () => undefined,
+  });
 
-vi.mock('~/lib/stores/workbench', () => ({
-  workbenchStore: {
-    previews: atom([]),
-    showWorkbench: atom(true),
-    selectedFile: atom(undefined),
-    currentDocument: atom(undefined),
-    unsavedFiles: atom(new Set()),
-    files: atom({}),
-    currentView: atom('code'),
-    showTerminal: atom(false),
-    setDocuments: vi.fn(),
-    setCurrentDocumentContent: vi.fn(),
-    setCurrentDocumentScrollPosition: vi.fn(),
-    setSelectedFile: vi.fn(),
-    saveCurrentDocument: vi.fn(() => Promise.resolve()),
-    resetCurrentDocument: vi.fn(),
-    syncFiles: vi.fn(),
-    toggleTerminal: vi.fn(),
-  },
-}));
+  return {
+    workbenchStore: {
+      previews: atom([]),
+      showWorkbench: atom(true),
+      selectedFile: atom(undefined),
+      currentDocument: atom(undefined),
+      unsavedFiles: atom(new Set()),
+      files: atom({}),
+      currentView: atom('code'),
+      showTerminal: atom(false),
+      setDocuments: vi.fn(),
+      setCurrentDocumentContent: vi.fn(),
+      setCurrentDocumentScrollPosition: vi.fn(),
+      setSelectedFile: vi.fn(),
+      saveCurrentDocument: vi.fn(() => Promise.resolve()),
+      resetCurrentDocument: vi.fn(),
+      syncFiles: vi.fn(),
+      toggleTerminal: vi.fn(),
+    },
+  };
+});
 
 import { Workbench } from './Workbench.client';
 
 describe('Workbench mobile surfaces', () => {
   beforeEach(() => {
-    smallViewport = true;
+    testState.smallViewport = true;
   });
 
   it('renders the files surface on mobile', () => {
@@ -74,7 +89,7 @@ describe('Workbench mobile surfaces', () => {
   });
 
   it('keeps the desktop editor composition when not on a small viewport', () => {
-    smallViewport = false;
+    testState.smallViewport = false;
     render(<Workbench chatStarted mobileView="files" />);
     expect(screen.getByTestId('editor-desktop')).toBeInTheDocument();
   });
