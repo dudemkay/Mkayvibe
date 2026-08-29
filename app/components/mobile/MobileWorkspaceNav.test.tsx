@@ -36,21 +36,12 @@ describe('MobileWorkspaceNav', () => {
     expect(onChange).toHaveBeenCalledWith('preview');
   });
 
-  it('shows an empty section for files before a workspace exists and offers Git import', () => {
-    const onChange = vi.fn();
-    render(<MobileWorkspaceNav activeView="files" onChange={onChange} workspaceReady={false} />);
+  it('never renders a second full-screen empty-state layer', () => {
+    render(<MobileWorkspaceNav activeView="files" onChange={() => undefined} workspaceReady={false} />);
 
-    expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
-    expect(screen.getByText(/project files will appear here/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Import from GitHub' }));
-    expect(onChange).toHaveBeenCalledWith('git');
-  });
-
-  it('does not cover the Git surface with an empty-state overlay before a workspace exists', () => {
-    render(<MobileWorkspaceNav activeView="git" onChange={() => undefined} workspaceReady={false} />);
-
-    expect(screen.queryByRole('heading', { name: 'Git' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Git' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Go to Chat' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Import from GitHub' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Files' })).toHaveAttribute('aria-current', 'page');
   });
 });
