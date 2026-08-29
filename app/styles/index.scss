@@ -75,6 +75,8 @@ body {
   [data-testid='native-mobile-shell'] {
     isolation: isolate;
     contain: layout paint;
+    height: calc(100dvh - var(--header-height)) !important;
+    max-height: calc(100dvh - var(--header-height));
     max-width: 100vw;
     min-width: 0;
   }
